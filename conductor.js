@@ -309,7 +309,28 @@ const conductor = (function () {
           let orientation = 0;
           let onScreen = false;
           let interactive = false;
+          let bounds = {"x0":-1,"y0":-1,"x1":-1,"y1":-1};
+          let clickFn = null;
+          let clickParam = null;
           return {
+            "setClickParam":function (param){
+              clickParam = param;
+            },
+            "getClickParam":function (){
+              return clickParam;
+            },
+            "setClickFn":function (fn){
+              clickFn = fn;
+            },
+            "getClickFn":function(fn){
+              return clickFn;
+            },
+            "getBounds":function (){
+              return bounds;
+            },
+            "setBounds":function(x0,y0,x1,y1){
+              this.bounds = {"x0":x0,"y0":y0,"x1":x1,"y1":y1};
+            },
             /** Gets the sprites used to draw this Game Object. A sprite {color,
              *  coords} is an array of polar coordinates {r,a} (radius and 
              * azimuth), and a color.                         

@@ -26,8 +26,8 @@ const conductor = (function () {
   */
   function toPolar(x, y) {
     return {
-      a: Math.atan2(y0, x0),
-      r: Math.sqrt(Math.pow(x0, 2) + Math.pow(y0, 2))
+      a: Math.atan2(y, x),
+      r: Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2))
     }
   }
   function fromPolar(radius, angle) {
@@ -58,13 +58,13 @@ const conductor = (function () {
      * Draws all the game objects on the canvas.
      */
     "draw": function () {
-      objects.forEach(object => {
+      Object.getOwnPropertyNames(objects).forEach(objectName => {
+        let object = objects[objectName];
         object.getSprites().forEach(sprite => {
           //a sprite is an object{color, coords}
           ctx.fillStyle = sprite.color;
           ctx.beginPath();
           let firstPoint = true;
-          ctx.moveTo(point.x, point.y);
           sprite.coords.forEach(polarCoordinate => {
             let rotated = {
               "r": polarCoordinate.r,
@@ -108,25 +108,29 @@ const conductor = (function () {
      * @param {String} color #RGB color.
      */
     "addSpriteTo": function (name, points, color) {
+      if (!Object.hasOwn(objects,name)){
+        throw new Error (`Cannot add sprite.  '${name}' does not exist.`);
+      }
       if (points.length % 2 !== 0) {
         throw Error(`points must be pairs of numbers`);
       }
       let polarCoordinates = [];
-      for (let i = 0; i < points.length; i++) {
-        coords.push(toPolar(points[i], points[i + 1]));
+      for (let i = 0; i < points.length; i=i+2) {
+        polarCoordinates.push(toPolar(points[i], points[i + 1]));
       }
-      objects[name].sprites.push({
+      objects[name].addSprite({
         "color": color,
         "coords": polarCoordinates
       });
     },
       /** 
      * Set the position of game object, in Game Coordinates.
+     * @param {string} name The name fof the GameObject
      * @param {Number} x the x coordinate.
      * @param {Number} y the y coordinate.
      */
     "setPositionOf": function (name, x, y) {
-      if (!has(name)){
+      if (!Object.hasOwn(objects, name)){
         throw new Error (`cannot set position: ${name} does not exist.`);
       }else{
         objects[name].setPosition (x,y);
@@ -161,21 +165,28 @@ const conductor = (function () {
      */
     "create": function (name) {
       if (Object.hasOwn(objects, name)) {
-        throw Error(`${n} already exists.`);
+        throw Error(`${name} already exists.`);
       } else {
         objects[name] = new (function () {
           const sprites = [];
-          const gx = 0;
-          const gy = 0;
+          let gx = 0;
+          let gy = 0;
           const orientation = 0;
           return {
             /** Gets the sprites used to draw this Game Object. A sprite {color,
-             *  coords} is array of polar coordinates {r,a} (radius and 
+             *  coords} is an array of polar coordinates {r,a} (radius and 
              * azimuth), and a color.                         
              * @returns {[Sprite]} An array of sprites 
              */
             "getSprites": function () {
               return sprites;
+            },
+            /** Adds a sprite to this Game Object. A sprite {color,
+             *  coords} is an array of polar coordinates {r,a} (radius and 
+             * azimuth), and a color.                         
+             */
+            "addSprite": function (sprite){
+              sprites.push (sprite);
             },
             /**
              * Gets the objects position in Game Coordinates

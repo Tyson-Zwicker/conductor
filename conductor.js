@@ -18,10 +18,8 @@ const conductor = (function () {
   var screenSizeY = null;
   /**
   * Converts a cartesian coordinate to a polar coordinate.
-  * @param {number} x - the coordinate along
-  *  the horizontal (x) axis.
-  * @param {number} y - the coordinate along 
-  * the vertical (y) axis.
+  * @param {number} x the coordinate along the horizontal (x) axis.
+  * @param {number} y the coordinate along the vertical (y) axis.
   * @returns {PolarCoordinate} r,a - the radius and azimuth (angle)
   */
   function toPolar(x, y) {
@@ -30,9 +28,36 @@ const conductor = (function () {
       r: Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2))
     }
   }
+  /**
+  * Converts a polar coordinate to a cartesian coordinate
+  * @param {number} radius polar coordinate radius 
+  * @param {number} aangle polar coodinate azimuth
+  * @returns {Point} {x,y} Cartesian coordinates.
+  */
   function fromPolar(radius, angle) {
     return { "x": Math.cos(angle) * radius, "y": Math.sin(angle) * radius };
   }
+  /**
+    * Converts a polar coordinate to a cartesian coordinate after applying
+    * rotation and translation.
+    * @param {number} polar The initial polar coordinate
+    * @param {number} rotation the amount to rotate the coordinate in Radians.
+    * @param {Point} translation the {x,y} amount to translate the coorindate
+    * @returns {Point} the cartesian coordinate after transformations applied.
+    */
+  function rotateTranslateTransform(polar, rotation, translation) {
+    let rotated = {"r":polar.r, "a":polar.a+rotation};
+    let point = {
+      "x":Math.cos (rotated.a)*rotated.r,
+      "y":Math.sin (rotated.a)*rotated.r
+    }
+    let translatedPoint = {
+      "x":point.x + translation.x,
+      "y":point.y + translation.y
+    }
+    return translatedPoint;
+  }
+
   return {
     /**
      * Creates the canvas, attach event handlers..
@@ -61,26 +86,24 @@ const conductor = (function () {
       Object.getOwnPropertyNames(objects).forEach(objectName => {
         let object = objects[objectName];
         object.getSprites().forEach(sprite => {
-          //a sprite is an object{color, coords}
           ctx.fillStyle = sprite.color;
+          console.log(`fillStyle set to ${sprite.color}`);
           ctx.beginPath();
           let firstPoint = true;
           sprite.coords.forEach(polarCoordinate => {
-            let rotated = {
-              "r": polarCoordinate.r,
-              "a": polarCoordinate.a + object.getOrientation()
-            };
-            let point = fromPolar(rotated);
-            let position = object.getPosition();
-            point.x += position.x;
-            point.y += position.y;
+            let point = rotateTranslateTransform (
+              polarCoordinate, object.getOrientation(), object.getPosition()
+            );
             if (firstPoint) {
-              ctx.moveTo(point.x, point.y);
+              console.log(`moveto ${point.x},${point.y}`);
+              ctx.moveTo (point.x, point.y);
               firstPoint = false;
             } else {
+              console.log(`lineto ${point.x},${point.y}`);
               ctx.lineTo(point.x, point.y);
             }
           });
+          console.log('closing path and filling..');
           ctx.closePath();
           ctx.fill();
         });
@@ -108,14 +131,14 @@ const conductor = (function () {
      * @param {String} color #RGB color.
      */
     "addSpriteTo": function (name, points, color) {
-      if (!Object.hasOwn(objects,name)){
-        throw new Error (`Cannot add sprite.  '${name}' does not exist.`);
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`Cannot add sprite.  '${name}' does not exist.`);
       }
       if (points.length % 2 !== 0) {
         throw Error(`points must be pairs of numbers`);
       }
       let polarCoordinates = [];
-      for (let i = 0; i < points.length; i=i+2) {
+      for (let i = 0; i < points.length; i = i + 2) {
         polarCoordinates.push(toPolar(points[i], points[i + 1]));
       }
       objects[name].addSprite({
@@ -123,28 +146,28 @@ const conductor = (function () {
         "coords": polarCoordinates
       });
     },
-      /** 
-     * Set the position of game object, in Game Coordinates.
-     * @param {string} name The name fof the GameObject
-     * @param {Number} x the x coordinate.
-     * @param {Number} y the y coordinate.
-     */
+    /** 
+   * Set the position of game object, in Game Coordinates.
+   * @param {string} name The name fof the GameObject
+   * @param {Number} x the x coordinate.
+   * @param {Number} y the y coordinate.
+   */
     "setPositionOf": function (name, x, y) {
-      if (!Object.hasOwn(objects, name)){
-        throw new Error (`cannot set position: ${name} does not exist.`);
-      }else{
-        objects[name].setPosition (x,y);
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`cannot set position: ${name} does not exist.`);
+      } else {
+        objects[name].setPosition(x, y);
       }
     },
     /**
      * Sets the orientation of a game object, in radians.
      * @param {number} orientation the orientation/direction, in radians.
      */
-    "setOrientationOf":function (name, orientation){
-      if (!has(name)){
-        throw new Error (`cannot set position: ${name} does not exist.`);
-      }else{
-        objects[name].setOrientation (orientation);
+    "setOrientationOf": function (name, orientation) {
+      if (!has(name)) {
+        throw new Error(`cannot set position: ${name} does not exist.`);
+      } else {
+        objects[name].setOrientation(orientation);
       }
     },
     /**
@@ -185,8 +208,8 @@ const conductor = (function () {
              *  coords} is an array of polar coordinates {r,a} (radius and 
              * azimuth), and a color.                         
              */
-            "addSprite": function (sprite){
-              sprites.push (sprite);
+            "addSprite": function (sprite) {
+              sprites.push(sprite);
             },
             /**
              * Gets the objects position in Game Coordinates

@@ -3,7 +3,7 @@ const go = function () {
   conductor.create('test');
   conductor.addSpriteTo(
     'test',
-    [0,-30,30,-30,-30,-30],
+    [0,-50,30,30,-30,30],
     '#0f0'
   );
   conductor.setPositionOf(

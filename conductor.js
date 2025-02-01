@@ -1,31 +1,33 @@
 /*
-The core of the game engine.
-This runs immediately, establishes event handlers for keyboard and mouse, and 
-calls the init() function, which must exist in the html file, and starts a main
-loop in the run() function, which must also in the html.
+This runs immediately, establishes event handlers for keyboard and mouse, and
+creates the canvas.
+
 Finally, it returns an object called the "conductor".  All the "things" in your
 program that should interact with the user, via mouse or keyboard or be drawn on
 the canvas must be registered with the conductor so they can automatically be
 made aware of events that effect them, and be animated in the main loop.
+
+Calling the loop() function will start animating the program, and interacting
+with the user.
 */
 
 const conductor = (function () {
   ///-------------------------PRIVATE-----------------------------------------
-  /*contains all of the things in the game, buttons, game objects, etc.*/
   var objects = {};
   var canvas = null;
   let ctx = null;
-  var screenSizeX = null;
-  var screenSizeY = null;
+  var backgroundColor = null;
+
   var running = false;    //Is the mainloop supposed to keep going?
   var frameRate = null;
-  var backgroundColor = null;
   var oldTime = new Date();
   var time = new Date();
   var delta = 0;
+
+  var mouse = { "x": 0, "y": 0, "button": false };
   var hoveredObject = null;
   var pressedObject = null;
-  var mouseX, mouseY, mouseDown = null;
+
   /**
   * Converts a cartesian coordinate to a polar coordinate.
   * @param {number} x the coordinate along the horizontal (x) axis.
@@ -67,6 +69,15 @@ const conductor = (function () {
     }
     return translatedPoint;
   }
+
+  function isBounded(point, bounds) {
+    return (
+      point.x > bounds.x0 &&
+      point.y > bounds.y0 &&
+      point.x < bounds.x1 &&
+      point.x < bounds, y1);
+  }
+
   /**
    * Gets the coordinate of the center of the screen.
    * @returns point {x,y} 
@@ -94,7 +105,71 @@ const conductor = (function () {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
-  function checkMouseInteractions(){}
+  /**
+     * Draws all the game objects on the canvas.
+     */
+  function drawObjects() {
+    Object.getOwnPropertyNames(objects).forEach(objectName => {
+      let object = objects[objectName];
+      object.getSprites().forEach(sprite => {
+        let firstPoint = true;
+        sprite.coords.forEach(polarCoordinate => {
+          let point = rotateTranslateTransform(
+            polarCoordinate, object.getOrientation(), object.getPosition()
+          );
+          point = translate(point, screenCenter());
+          if (bounded(point, screenSize)) {
+            ctx.fillStyle = sprite.color;
+            ctx.beginPath();
+            if (firstPoint) {
+              console.log(`moveto ${point.x},${point.y}`);
+              ctx.moveTo(point.x, point.y);
+              firstPoint = false;
+            } else {
+              console.log(`lineto ${point.x},${point.y}`);
+              ctx.lineTo(point.x, point.y);
+            }
+            object.setOnScreen(true);
+          } else {
+            object.setOnScreen(false);
+          }
+        });
+        console.log('closing path and filling..');
+        ctx.closePath();
+        ctx.fill();
+      });
+    });
+  }
+  function checkMouseInteractions() {
+    Object.getOwnPropertyNames(objects).forEach(objectName => {
+      let object = objects[objectName];
+      if (object.isInteractive()) {
+        if (object.isOnScreen()) {
+          if (isBounded(mouse, object.getBounds())) {
+            //The mouse is inside of the object's bounds.
+            if (mouse.button === false && hoveredObject !== object) {
+              //a newly hovered object
+              hoveredObject = object;
+              pressedObject = null;
+            }
+            else if (mouse.button && hoveredObject === object) {
+              //button was pressed while it was hovering on this object
+              pressedObject = object;
+            } else if (!mouse.button && pressedObject === object) {
+              //The button was released on the same object pressed on.. CLICK!
+              let clickFn = object.getClickFn();
+              let clickParam = object.getClickParam();
+              if (clickParam) {
+                clickFn();
+              } else {
+                clickFn(clickParam);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
   function mainLoop() {
     delta = (_time - _oldTime) / 1000;
     ctx.fillStyle = backgroundColor;
@@ -117,15 +192,15 @@ const conductor = (function () {
       canvas.style.padding = "0px 0px 0px 0px";
       canvas.style.margin = "0px 0px 0px 0px";
       canvas.style.border = "0px";
-      canvas.onmousemove = function (e){
-        mouseX = e.clientX;
-        mouseY = e.clientY;
+      canvas.onmousemove = function (e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
       }
-      canvas.onmousedown = function(e){
-        mouseDown = true;
+      canvas.onmousedown = function (e) {
+        mouse.button = true;
       }
-      canvas.mouseUp = function (e){
-        mouseDown = false;
+      canvas.mouseUp = function (e) {
+        mouse.button = false;
       }
       resizeCanvas();
       window.addEventListener("resize", resizeCanvas);
@@ -144,37 +219,6 @@ const conductor = (function () {
       running = false;
     },
     /**
-     * Draws all the game objects on the canvas.
-     */
-    "draw": function () {
-      Object.getOwnPropertyNames(objects).forEach(objectName => {
-        let object = objects[objectName];
-        object.getSprites().forEach(sprite => {
-          ctx.fillStyle = sprite.color;
-          console.log(`fillStyle set to ${sprite.color}`);
-          ctx.beginPath();
-          let firstPoint = true;
-          sprite.coords.forEach(polarCoordinate => {
-            let point = rotateTranslateTransform(
-              polarCoordinate, object.getOrientation(), object.getPosition()
-            );
-            point = translate(point, screenCenter());
-            if (firstPoint) {
-              console.log(`moveto ${point.x},${point.y}`);
-              ctx.moveTo(point.x, point.y);
-              firstPoint = false;
-            } else {
-              console.log(`lineto ${point.x},${point.y}`);
-              ctx.lineTo(point.x, point.y);
-            }
-          });
-          console.log('closing path and filling..');
-          ctx.closePath();
-          ctx.fill();
-        });
-      });
-    },
-    /**
      * Gets the size of the window.
      * @returns {Size} the width and height {w,h}
      */
@@ -187,6 +231,9 @@ const conductor = (function () {
      */
     "getScreenCenter": function () {
       return screenCenter();
+    },
+    "getMouse": function () {
+      return { mouse };
     },
     /** 
      * Adds a sprite to this object
@@ -259,7 +306,9 @@ const conductor = (function () {
           const sprites = [];
           let gx = 0;
           let gy = 0;
-          const orientation = 0;
+          let orientation = 0;
+          let onScreen = false;
+          let interactive = false;
           return {
             /** Gets the sprites used to draw this Game Object. A sprite {color,
              *  coords} is an array of polar coordinates {r,a} (radius and 
@@ -302,6 +351,15 @@ const conductor = (function () {
              */
             "setOrientation": function (angle) {
               orientation = angle;
+            },
+            "isOnScreen": function () {
+              return onScreen;
+            },
+            "setOnScreen": function (visible) {
+              onScreen = visible;
+            },
+            "isInteractive": function () {
+              return interactive;
             }
           }
         })();

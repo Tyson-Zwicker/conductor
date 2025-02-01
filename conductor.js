@@ -27,7 +27,7 @@ const conductor = (function () {
   var mouse = { "x": 0, "y": 0, "button": false };
   var hoveredObject = null;
   var pressedObject = null;
-
+  var initialized = false;
   /**
   * Converts a cartesian coordinate to a polar coordinate.
   * @param {number} x the coordinate along the horizontal (x) axis.
@@ -50,8 +50,7 @@ const conductor = (function () {
     return { "x": Math.cos(angle) * radius, "y": Math.sin(angle) * radius };
   }
   /**
-    * Converts a polar coordinate to a cartesian coordinate after applying
-    * rotation and translation.
+    * Converts a polar coordinate to a cartesian coordinate after applying rotation and translation.
     * @param {number} polar The initial polar coordinate
     * @param {number} rotation the amount to rotate the coordinate in Radians.
     * @param {Point} translation the {x,y} amount to translate the coorindate
@@ -59,25 +58,19 @@ const conductor = (function () {
     */
   function rotateTranslateTransform(polar, rotation, translation) {
     let rotated = { "r": polar.r, "a": polar.a + rotation };
-    let point = {
-      "x": Math.cos(rotated.a) * rotated.r,
-      "y": Math.sin(rotated.a) * rotated.r
-    }
-    let translatedPoint = {
-      "x": point.x + translation.x,
-      "y": point.y + translation.y
-    }
+    let point = { "x": Math.cos(rotated.a) * rotated.r, "y": Math.sin(rotated.a) * rotated.r }
+    let translatedPoint = { "x": point.x + translation.x, "y": point.y + translation.y }
     return translatedPoint;
   }
-
   function isBounded(point, bounds) {
-    return (
-      point.x > bounds.x0 &&
-      point.y > bounds.y0 &&
-      point.x < bounds.x1 &&
-      point.x < bounds, y1);
-  }
+    let debug = true;
 
+    if (debug) {
+      console.log(`Is ${point.x},${point.y} bounded by (${bounds.x0}, ${bounds.y0}) , (${bounds.x1},${bounds.y1})?`);
+      console.log(`Bounded is ${(point.x > bounds.x0 && point.y > bounds.y0 && point.x < bounds.x1 && point.y < bounds.y1)}`);
+    }
+    return (point.x > bounds.x0 && point.y > bounds.y0 && point.x < bounds.x1 && point.y < bounds.y1);
+  }
   /**
    * Gets the coordinate of the center of the screen.
    * @returns point {x,y} 
@@ -87,10 +80,13 @@ const conductor = (function () {
   }
   /**
    * Gets the size of the screen.
-   * @returns size {w,h} 
+   * @returns size {x,y} 
    */
   function screenSize() {
     return { "w": canvas.width, "h": canvas.height };
+  }
+  function screenBounds() {
+    return { "x0": 0, "y0": 0, "x1": canvas.width, "y1": canvas.height };
   }
   /**
    * Gets a point after translation by another point
@@ -109,72 +105,120 @@ const conductor = (function () {
      * Draws all the game objects on the canvas.
      */
   function drawObjects() {
+    let debug = true;
+
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
-      let centerPoint = object.getPosition();
-      centerPoint.translate(screenCenter());
-      if (bounded(centerPoint, screenSize())) {
+      let objectPosition = object.getPosition();
+      let centerPoint = translate(objectPosition, screenCenter());
+      if (debug) {
+        console.log(`object's position ${objectPosition.x},${objectPosition.y}`);
+        console.log(`translated to center of screen: ${centerPoint.x},${centerPoint.y}`);
+        console.log(`object has ${object.getSprites().length} sprite(s).`);
+      }
+      if (isBounded(centerPoint, screenBounds()) && object.getSprites().length > 0) {
+        if (debug) {
+          console.log(`object is inside the screen boundry, and has some sprite.`);
+        }
         object.setOnScreen(true);
-        let spriteBounds = {
-          x0: undefined, y0: undefined, x1: undefined, y1: undefined
-        };
+        let spriteBounds = { x0: undefined, y0: undefined, x1: undefined, y1: undefined };
         object.getSprites().forEach(sprite => {
           let firstPoint = true;
+          if (debug) {
+            console.log(`drawing sprite with color ${sprite.color}`);
+          }
+          ctx.fillStyle = sprite.color;
+          ctx.beginPath();
           sprite.coords.forEach(polarCoordinate => {
-            let spritePoint = rotateTranslateTransform(
-              polarCoordinate, object.getOrientation(), centerPoint
-            );
-            if (spriteBounds.x0===undefined || spriteBounds.x0>spritePoint.x){
-              spritebounds.x0 = spritePoint.x;
+            let spritePoint = rotateTranslateTransform(polarCoordinate, object.getOrientation(), centerPoint);
+
+            if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
+              spriteBounds.x0 = spritePoint.x;
             }
-            if (spriteBounds.x1===undefined || spriteBounds.x1<spritePoint.x){
+            if (spriteBounds.x1 === undefined || spriteBounds.x1 < spritePoint.x) {
               spriteBounds.x1 = spritePoint.x;
             }
-            if (spriteBounds.y0===undefined || spriteBounds.y0>spritePoint.y){
-              spritebounds.y0 = spritePoint.y;
+            if (spriteBounds.y0 === undefined || spriteBounds.y0 > spritePoint.y) {
+              spriteBounds.y0 = spritePoint.y;
             }
-            if (spriteBounds.y1===undefined || spriteBounds.y1<spritePoint.y){
+            if (spriteBounds.y1 === undefined || spriteBounds.y1 < spritePoint.y) {
               spriteBounds.y1 = spritePoint.y;
             }
-            ctx.fillStyle = sprite.color;
-            ctx.beginPath();
             if (firstPoint) {
-              console.log(`moveto ${point.x},${point.y}`);
-              ctx.moveTo(point.x, point.y);
+
+              ctx.moveTo(spritePoint.x, spritePoint.y);
+
+              if (debug) {
+                console.log(`  move to Sprite Point ${spritePoint.x},${spritePoint.y}`);
+              }
+
               firstPoint = false;
             } else {
-              console.log(`lineto ${point.x},${point.y}`);
-              ctx.lineTo(point.x, point.y);
+
+              ctx.lineTo(spritePoint.x, spritePoint.y);
+
+              if (debug) {
+                console.log(`  line to Sprite Point ${spritePoint.x},${spritePoint.y}`);
+              }
             }
             //set bounds..
-            object.setBounds (spriteBounds);
-          });
-          console.log('closing path and filling..');
+            object.setBounds(spriteBounds);
+          });//next sprite coordinate...          
+          if (debug) {
+            console.log(`closing sprite path and filling.`);
+          }
           ctx.closePath();
           ctx.fill();
-        });
+        });//next sprite..
+        if (debug) {
+          console.log(`All sprites for ${objectName} created spriteBounds (${spriteBounds.x0}, ${spriteBounds.y0}) , (${spriteBounds.x1},${spriteBounds.y1})`);
+        }
       } else {
+        if (debug) {
+          console.log(`game object ${objectName} is not on the screen`);
+        }
         object.setOnScreen(false);
       }
-    });
+    });//next object..
   }
   function checkMouseInteractions() {
+    let debug = true;
+
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
+      if (debug) {
+        console.log(`${objectName} is interactive: ${object.isInteractive()}`);
+      }
       if (object.isInteractive()) {
+        if (debug) {
+          console.log(`${objectName} is on screen: ${object.isInteractive()}`);
+        }
         if (object.isOnScreen()) {
           if (isBounded(mouse, object.getBounds())) {
             //The mouse is inside of the object's bounds.
+            if (debug) {
+              console.log(`${objectName} bounds mouse position ${mouse.x},${mouse.y}`);
+            }
             if (mouse.button === false && hoveredObject !== object) {
               //a newly hovered object
+              if (debug) {
+                console.log(`hovered.`);
+              }
               hoveredObject = object;
               pressedObject = null;
             }
             else if (mouse.button && hoveredObject === object) {
               //button was pressed while it was hovering on this object
+              if (debug) {
+                console.log(`pressed.`);
+              }
               pressedObject = object;
-            } else if (!mouse.button && pressedObject === object) {
+            }
+            else if (!mouse.button && pressedObject === object) {
               //The button was released on the same object pressed on.. CLICK!
+              if (debug) {
+                console.log(`clicked.`);
+              }
               let clickFn = object.getClickFn();
               let clickParam = object.getClickParam();
               if (clickParam) {
@@ -189,10 +233,11 @@ const conductor = (function () {
     });
   }
   function mainLoop() {
-    delta = (_time - _oldTime) / 1000;
+    delta = (time - oldTime) / 1000;
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     checkMouseInteractions();
+    drawObjects();
     if (running) setTimeout(mainLoop, frameRate);
   }
 
@@ -203,34 +248,44 @@ const conductor = (function () {
      * @param {string} bgColor #RGB canvas background color.
      */
     "init": function (bgColor) {
-      backgroundColor = (bgColor) ? bgColor : '#000';
-      let body = document.getElementsByTagName('body')[0];
-      body.style.margin = "0px";
-      canvas = document.createElement('canvas');
-      canvas.style.padding = "0px 0px 0px 0px";
-      canvas.style.margin = "0px 0px 0px 0px";
-      canvas.style.border = "0px";
-      canvas.onmousemove = function (e) {
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
+      if (initialized) { 
+        throw new Error ('You can only initialize it once.');
+      } else {
+        backgroundColor = (bgColor) ? bgColor : '#000';
+        let body = document.getElementsByTagName('body')[0];
+        body.style.margin = "0px";
+        canvas = document.createElement('canvas');
+        canvas.style.padding = "0px 0px 0px 0px";
+        canvas.style.margin = "0px 0px 0px 0px";
+        canvas.style.border = "0px";
+        canvas.onmousemove = function (e) {
+          mouse.x = e.clientX;
+          mouse.y = e.clientY;
+        }
+        canvas.onmousedown = function (e) {
+          mouse.button = true;
+        }
+        canvas.mouseUp = function (e) {
+          mouse.button = false;
+        }
+        resizeCanvas();
+        window.addEventListener("resize", resizeCanvas);
+        ctx = canvas.getContext('2d');
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+        console.log(`adding canvas to body`);
+        body.appendChild(canvas);
+        initialized = true;
       }
-      canvas.onmousedown = function (e) {
-        mouse.button = true;
-      }
-      canvas.mouseUp = function (e) {
-        mouse.button = false;
-      }
-      resizeCanvas();
-      window.addEventListener("resize", resizeCanvas);
-      ctx = canvas.getContext('2d');
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-      body.appendChild(canvas);
-
     },
-    "startloop": function (frameRateMillis) {
-      frameRate = (frameRateMillis) ? frameRateMillis : 33;
-      running = true;
+    "runOnce": function (){
+      running = false;
+      mainLoop();
+    },
+    "startLoop": function (frameRateMillis) {
+      frameRate = frameRateMillis;
+      //Only run once if no frame rate is defined.
+      running = (frameRateMillis) ? true : false;
       mainLoop();
     },
     "stopLoop": function () {
@@ -242,6 +297,9 @@ const conductor = (function () {
      */
     "getScreenSize": function () {
       return screenSize();
+    },
+    "getScreenBounds": function () {
+      return screenBounds();
     },
     /**
      * Gets the coordinate of the center of the window.
@@ -347,7 +405,7 @@ const conductor = (function () {
               return bounds;
             },
             "setBounds": function (x0, y0, x1, y1) {
-              this.bounds = { "x0": x0, "y0": y0, "x1": x1, "y1": y1 };
+              bounds = { "x0": x0, "y0": y0, "x1": x1, "y1": y1 };
             },
             /** Gets the sprites used to draw this Game Object. A sprite {color,
              *  coords} is an array of polar coordinates {r,a} (radius and 

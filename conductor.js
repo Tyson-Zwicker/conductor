@@ -111,14 +111,31 @@ const conductor = (function () {
   function drawObjects() {
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
-      object.getSprites().forEach(sprite => {
-        let firstPoint = true;
-        sprite.coords.forEach(polarCoordinate => {
-          let point = rotateTranslateTransform(
-            polarCoordinate, object.getOrientation(), object.getPosition()
-          );
-          point = translate(point, screenCenter());
-          if (bounded(point, screenSize)) {
+      let centerPoint = object.getPosition();
+      centerPoint.translate(screenCenter());
+      if (bounded(centerPoint, screenSize())) {
+        object.setOnScreen(true);
+        let spriteBounds = {
+          x0: undefined, y0: undefined, x1: undefined, y1: undefined
+        };
+        object.getSprites().forEach(sprite => {
+          let firstPoint = true;
+          sprite.coords.forEach(polarCoordinate => {
+            let spritePoint = rotateTranslateTransform(
+              polarCoordinate, object.getOrientation(), centerPoint
+            );
+            if (spriteBounds.x0===undefined || spriteBounds.x0>spritePoint.x){
+              spritebounds.x0 = spritePoint.x;
+            }
+            if (spriteBounds.x1===undefined || spriteBounds.x1<spritePoint.x){
+              spriteBounds.x1 = spritePoint.x;
+            }
+            if (spriteBounds.y0===undefined || spriteBounds.y0>spritePoint.y){
+              spritebounds.y0 = spritePoint.y;
+            }
+            if (spriteBounds.y1===undefined || spriteBounds.y1<spritePoint.y){
+              spriteBounds.y1 = spritePoint.y;
+            }
             ctx.fillStyle = sprite.color;
             ctx.beginPath();
             if (firstPoint) {
@@ -129,15 +146,16 @@ const conductor = (function () {
               console.log(`lineto ${point.x},${point.y}`);
               ctx.lineTo(point.x, point.y);
             }
-            object.setOnScreen(true);
-          } else {
-            object.setOnScreen(false);
-          }
+            //set bounds..
+            object.setBounds (spriteBounds);
+          });
+          console.log('closing path and filling..');
+          ctx.closePath();
+          ctx.fill();
         });
-        console.log('closing path and filling..');
-        ctx.closePath();
-        ctx.fill();
-      });
+      } else {
+        object.setOnScreen(false);
+      }
     });
   }
   function checkMouseInteractions() {
@@ -309,27 +327,27 @@ const conductor = (function () {
           let orientation = 0;
           let onScreen = false;
           let interactive = false;
-          let bounds = {"x0":-1,"y0":-1,"x1":-1,"y1":-1};
+          let bounds = { "x0": -1, "y0": -1, "x1": -1, "y1": -1 };
           let clickFn = null;
           let clickParam = null;
           return {
-            "setClickParam":function (param){
+            "setClickParam": function (param) {
               clickParam = param;
             },
-            "getClickParam":function (){
+            "getClickParam": function () {
               return clickParam;
             },
-            "setClickFn":function (fn){
+            "setClickFn": function (fn) {
               clickFn = fn;
             },
-            "getClickFn":function(fn){
+            "getClickFn": function (fn) {
               return clickFn;
             },
-            "getBounds":function (){
+            "getBounds": function () {
               return bounds;
             },
-            "setBounds":function(x0,y0,x1,y1){
-              this.bounds = {"x0":x0,"y0":y0,"x1":x1,"y1":y1};
+            "setBounds": function (x0, y0, x1, y1) {
+              this.bounds = { "x0": x0, "y0": y0, "x1": x1, "y1": y1 };
             },
             /** Gets the sprites used to draw this Game Object. A sprite {color,
              *  coords} is an array of polar coordinates {r,a} (radius and 

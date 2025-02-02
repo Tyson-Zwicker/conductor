@@ -392,17 +392,6 @@ const conductor = (function () {
      * @param {bool} true if bold, false otherwise (optional).
      */
     "setFont": function(fontSize, isBold){
-      /*
-      canvas.style.fontFamily = "monospace";
-      canvas.style.fontSize =`${fontSize}px`;
-      if (isBold) {
-        canvas.style.fontWeight = 'bold';
-      }else{
-        canvas.style.fontWeight = 'normal';
-      }
-        */
-      //_ctx.font = (fontSize) ? `${fontSize}em monospace` : '0.75em monospace';
-      
       let cssFont = `${fontSize}px monospace'`;
       if (isBold) cssFont='bold '+cssFont;
       console.log (`setting font to '${cssFont}`);

@@ -232,10 +232,8 @@ const conductor = (function () {
             console.log(`${objectName} has a label..`);
           }
 
-          let labelWidth = getTextWidth(label.text);
-          let labelHeight = getTextHeight();
-          let labelX = objectPosition.x + label.offset.x - labelWidth / 2 + screenCenter().x;
-          let labelY = objectPosition.y + label.offset.y - labelHeight / 2 + screenCenter().y;
+          let labelX = objectPosition.x + label.offset.x + screenCenter().x;
+          let labelY = objectPosition.y + label.offset.y + screenCenter().y;
           ctx.textBaseline = "middle";
           ctx.textAlign = "center";
           ctx.fillStyle = label.color;
@@ -394,6 +392,7 @@ const conductor = (function () {
      * @param {bool} true if bold, false otherwise (optional).
      */
     "setFont": function(fontSize, isBold){
+      /*
       canvas.style.fontFamily = "monospace";
       canvas.style.fontSize =`${fontSize}px`;
       if (isBold) {
@@ -401,7 +400,15 @@ const conductor = (function () {
       }else{
         canvas.style.fontWeight = 'normal';
       }
-      console.log (canvas.style.cssText);
+        */
+      //_ctx.font = (fontSize) ? `${fontSize}em monospace` : '0.75em monospace';
+      
+      let cssFont = `${fontSize}px monospace'`;
+      if (isBold) cssFont='bold '+cssFont;
+      console.log (`setting font to '${cssFont}`);
+      ctx.font = cssFont
+
+      
     },
     /**
      * Gets the size of the window.
@@ -613,6 +620,11 @@ const conductor = (function () {
             "setOrientation": function (angle) {
               orientation = angle;
             },
+            /**
+             * Let's you know if the object is on screen, and should checked for mouse events.
+             * It is set during the draw routine.
+             * @returns true if the object is within the bounds of the screen, otherwise false.
+             */
             "isOnScreen": function () {
               return onScreen;
             },

@@ -238,14 +238,14 @@ const conductor = (function () {
           ctx.textAlign = "center";
           ctx.fillStyle = label.color;
 
-          if (debug){
-            console.log (`drawing label '${label.text}' at (${labelX},${labelY})`);
+          if (debug) {
+            console.log(`drawing label '${label.text}' at (${labelX},${labelY})`);
           }
           ctx.fillText(label.text, labelX, labelY);
-        } else{
+        } else {
 
           if (debug) {
-            console.log ('This object has no label.');
+            console.log('This object has no label.');
           }
 
         }
@@ -391,13 +391,12 @@ const conductor = (function () {
      * @param {number} fontSize the font size in pixels.
      * @param {bool} true if bold, false otherwise (optional).
      */
-    "setFont": function(fontSize, isBold){
-      let cssFont = `${fontSize}px monospace'`;
-      if (isBold) cssFont='bold '+cssFont;
-      console.log (`setting font to '${cssFont}`);
-      ctx.font = cssFont
-
-      
+    "setFont": function (fontSize, bold) {
+      if (bold) {
+        ctx.font = `bold ${fontSize}px monospace`;
+      } else {
+        ctx.font = `${fontSize}px monospace`;
+      }
     },
     /**
      * Gets the size of the window.

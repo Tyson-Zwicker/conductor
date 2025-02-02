@@ -8,7 +8,9 @@ the canvas must be registered with the conductor so they can automatically be
 made aware of events that effect them, and be animated in the main loop.
 
 Calling the loop() function will start animating the program, and interacting
-with the user.
+with the user.  runOnce() to run the main loop only once, and stopLoop() to stop 
+the loop from continuing.
+
 */
 
 const conductor = (function () {
@@ -62,6 +64,12 @@ const conductor = (function () {
     let translatedPoint = { "x": point.x + translation.x, "y": point.y + translation.y }
     return translatedPoint;
   }
+  /**
+   * Determines if a point falls within the boundry of a rectable.
+   * @param {Point} point an object with {x,y} properties.
+   * @param {Rectanle} bounds an object with {x0,y0,x1,y1} properties.
+   * @returns true if the point is withing the rectanlge, false if not.
+   */
   function isBounded(point, bounds) {
     let debug = true;
 
@@ -85,6 +93,10 @@ const conductor = (function () {
   function screenSize() {
     return { "w": canvas.width, "h": canvas.height };
   }
+  /**
+   * Returns the a rectanlge describing the screen's boundry.
+   * @returns a rectangle - an object with properties {x0, y0, x1, y1}
+   */
   function screenBounds() {
     return { "x0": 0, "y0": 0, "x1": canvas.width, "y1": canvas.height };
   }
@@ -97,13 +109,18 @@ const conductor = (function () {
   function translate(p0, p1) {
     return { "x": p0.x + p1.x, "y": p0.y + p1.y };
   }
+  /**
+   *  Resize the canvas to fit the current size of the window.
+   */
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
   /**
-     * Draws all the game objects on the canvas.
-     */
+   * Draws all of the game objects on the canvas which fit.  Offsets the
+   * objects "Game Coordinates" {x,y} by the center of the screen, such that
+   * an object with {0,0} will appear centered on the screen.
+   */
   function drawObjects() {
     let debug = true;
 
@@ -181,6 +198,13 @@ const conductor = (function () {
       }
     });//next object..
   }
+  /**
+   * Checks all the game objects that are "interactive" to see of the mouse if hovering over them,
+   * or if they have been clicked on.  If they have been clicked on, it will call that object's click
+   * function, and pass it parameters associated with the object, if any have been defined.
+   * TODO: Add properties to the game object that allow it to act like a button (alternating colors) or
+   * and if not a button, an an additional set of sprites to add when hovered, or clicked.
+   */
   function checkMouseInteractions() {
     let debug = true;
 
@@ -191,7 +215,7 @@ const conductor = (function () {
       }
       if (object.isInteractive()) {
         if (debug) {
-          console.log(`${objectName} is on screen: ${object.isInteractive()}`);
+          console.log(`${objectName} is on screen: ${object.isOnScreen()}`);
         }
         if (object.isOnScreen()) {
           if (isBounded(mouse, object.getBounds())) {
@@ -232,6 +256,10 @@ const conductor = (function () {
       }
     });
   }
+  /**
+   * This will have the conductor update the dispay and check the mouse.
+   * The frame rate is set when the init() function is called.
+   */
   function mainLoop() {
     delta = (time - oldTime) / 1000;
     ctx.fillStyle = backgroundColor;
@@ -244,12 +272,12 @@ const conductor = (function () {
   //-----------------------------PUBLIC----------------------------------------
   return {
     /**
-     * Creates the canvas, attach event handlers..
+     * Creates the canvas, set the background collor, attach event handlers..
      * @param {string} bgColor #RGB canvas background color.
      */
     "init": function (bgColor) {
-      if (initialized) { 
-        throw new Error ('You can only initialize it once.');
+      if (initialized) {
+        throw new Error('You can only initialize it once.');
       } else {
         backgroundColor = (bgColor) ? bgColor : '#000';
         let body = document.getElementsByTagName('body')[0];
@@ -278,16 +306,26 @@ const conductor = (function () {
         initialized = true;
       }
     },
-    "runOnce": function (){
+    /**
+     * Runs the main loop one time only.
+     */
+    "runOnce": function () {
       running = false;
       mainLoop();
     },
+    /**
+     * Runs the mainloop repeatedly
+     * @param {number} frameRateMillis the number of milliseconds to wait until running the main loop again.
+     */
     "startLoop": function (frameRateMillis) {
       frameRate = frameRateMillis;
       //Only run once if no frame rate is defined.
       running = (frameRateMillis) ? true : false;
       mainLoop();
     },
+    /**
+     * Stops the main loop from running. Call startLoop to get it going again.
+     */
     "stopLoop": function () {
       running = false;
     },
@@ -298,6 +336,10 @@ const conductor = (function () {
     "getScreenSize": function () {
       return screenSize();
     },
+    /**
+     * Get the size of the browser window
+     * @returns the size of the window {w,h}
+    */
     "getScreenBounds": function () {
       return screenBounds();
     },
@@ -308,6 +350,10 @@ const conductor = (function () {
     "getScreenCenter": function () {
       return screenCenter();
     },
+    /**
+     * Returns the last information collected about the mouse.
+     * @returns the mouse information {x,y,button} where button is true if down and false if not.
+     */
     "getMouse": function () {
       return { mouse };
     },
@@ -404,6 +450,13 @@ const conductor = (function () {
             "getBounds": function () {
               return bounds;
             },
+            /** this is set during the draw operation, it change based on how much space
+             * the object is taking up on the screen.
+             * @param {number} x0 the left most screen coordinate the object's sprite(s) touched.
+             * @param {number} y0 the upper most screen coordinate the object's sprite(s) touched.
+             * @param {number} x1 the right most screen coordinate the object's sprite(s) touched.
+             * @param {number} y1 the lower most screen coordinate the object's sprite(s) touched.
+             */
             "setBounds": function (x0, y0, x1, y1) {
               bounds = { "x0": x0, "y0": y0, "x1": x1, "y1": y1 };
             },
@@ -429,6 +482,10 @@ const conductor = (function () {
             "getPosition": function () {
               return { "x": gx, "y": gy };
             },
+            /**
+             * Gets the orientation/direction the object is facing- In Radians.
+             * @returns the orientation in radians.
+             */
             "getOrientation": function () {
               return orientation;
             },
@@ -452,11 +509,28 @@ const conductor = (function () {
             "isOnScreen": function () {
               return onScreen;
             },
+            /**
+             * This is set during the draw routine.. if the center point of the object is not 
+             * visible on screen, this set to false, other wise its true.  This way the object is not
+             * considered for mouse interaction if it isn't on the screen.
+             * @param {bool} visible true or false.
+             */
+            
             "setOnScreen": function (visible) {
               onScreen = visible;
             },
             "isInteractive": function () {
               return interactive;
+            },
+            /**
+             * Gives the object permission to interact with the mouse.
+             * @param {bool} interacts true if it can be interacted with, false otherwise.
+             */
+            "setInteractive" : function (interacts){
+              interactive = (interacts===true);
+              if (interactive !== true && interactive !==false){
+                throw new Error (`Interactive can only be true or false. ${interacts} is invalid`);
+              }
             }
           }
         })();

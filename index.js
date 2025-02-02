@@ -1,6 +1,6 @@
 const setup = function () {
   conductor.init('#012');
-  conductor.setFont (14,true);
+  conductor.setFont (14, true);
   
   conductor.create('test');
   conductor.addSpriteTo('test', [0, -50, 30, 30, -30, 30], '#0f0',true);
@@ -16,7 +16,7 @@ const setup = function () {
   conductor.create ('button');
   conductor.addSpriteTo ('button', [-30,-10,30,-10,30,10,-30,10],'#0af');
   conductor.setPositionOf ('button',0,0);
-  conductor.setLabelOf ('button','Button',{"x":0,"y":0},'#fff');
+  conductor.setLabelOf ('button','Buttony',{"x":0,"y":0},'#fff');
   
   conductor.runOnce();
 }

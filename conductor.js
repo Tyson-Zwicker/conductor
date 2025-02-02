@@ -31,6 +31,25 @@ const conductor = (function () {
   var pressedObject = null;
   var initialized = false;
   /**
+   * Gets the width of text (depends on context's current font) and the text..
+   * @param {string} text the text to be measured
+   * @returns the width of the text, in pixels.
+   */
+  function getTextWidth(text) {
+    const fontMetric = ctx.measureText(text);
+    let width = fontMetric.width;
+    return width;
+  }
+  /**
+   * Gets the height of text (depends on the context's current font);
+   */
+  function getTextHeight(font) {
+    //Using symbols the hang and rise the most.. in English at least.
+    var fontMetric = ctx.measureText("ljM^_");
+    let height = fontMetric.actualBoundingBoxAscent + fontMetric.actualBoundingBoxDescent;
+    return height;
+  }
+  /**
   * Converts a cartesian coordinate to a polar coordinate.
   * @param {number} x the coordinate along the horizontal (x) axis.
   * @param {number} y the coordinate along the vertical (y) axis.
@@ -144,7 +163,12 @@ const conductor = (function () {
           if (debug) {
             console.log(`drawing sprite with color ${sprite.color}`);
           }
-          ctx.fillStyle = sprite.color;
+          if (sprite.fill) {
+            ctx.fillStyle = sprite.color;
+          } else {
+            ctx.strokeStyle = sprite.color;
+            ctx.lineWidth = 1;
+          }
           ctx.beginPath();
           sprite.coords.forEach(polarCoordinate => {
             let spritePoint = rotateTranslateTransform(polarCoordinate, object.getOrientation(), centerPoint);
@@ -162,7 +186,6 @@ const conductor = (function () {
               spriteBounds.y1 = spritePoint.y;
             }
             if (firstPoint) {
-
               ctx.moveTo(spritePoint.x, spritePoint.y);
 
               if (debug) {
@@ -171,24 +194,62 @@ const conductor = (function () {
 
               firstPoint = false;
             } else {
-
               ctx.lineTo(spritePoint.x, spritePoint.y);
 
               if (debug) {
                 console.log(`  line to Sprite Point ${spritePoint.x},${spritePoint.y}`);
               }
+
             }
             //set bounds..
             object.setBounds(spriteBounds);
           });//next sprite coordinate...          
           if (debug) {
-            console.log(`closing sprite path and filling.`);
+            console.log(`closing sprite path...`);
           }
           ctx.closePath();
-          ctx.fill();
+          if (sprite.fill) {
+            if (debug) {
+              console.log(`...and filling.`);
+            }
+            ctx.fill();
+          } else {
+            if (debug) {
+              console.log(`...and stroke.`);
+            }
+            ctx.stroke();
+          }
         });//next sprite..
+
         if (debug) {
           console.log(`All sprites for ${objectName} created spriteBounds (${spriteBounds.x0}, ${spriteBounds.y0}) , (${spriteBounds.x1},${spriteBounds.y1})`);
+        }
+
+        let label = object.getLabel();
+        if (label) {
+
+          if (debug) {
+            console.log(`${objectName} has a label..`);
+          }
+
+          let labelWidth = getTextWidth(label.text);
+          let labelHeight = getTextHeight();
+          let labelX = objectPosition.x + label.offset.x - labelWidth / 2 + screenCenter().x;
+          let labelY = objectPosition.y + label.offset.y - labelHeight / 2 + screenCenter().y;
+          ctx.textBaseline = "middle";
+          ctx.textAlign = "center";
+          ctx.fillStyle = label.color;
+
+          if (debug){
+            console.log (`drawing label '${label.text}' at (${labelX},${labelY})`);
+          }
+          ctx.fillText(label.text, labelX, labelY);
+        } else{
+
+          if (debug) {
+            console.log ('This object has no label.');
+          }
+
         }
       } else {
         if (debug) {
@@ -202,8 +263,6 @@ const conductor = (function () {
    * Checks all the game objects that are "interactive" to see of the mouse if hovering over them,
    * or if they have been clicked on.  If they have been clicked on, it will call that object's click
    * function, and pass it parameters associated with the object, if any have been defined.
-   * TODO: Add properties to the game object that allow it to act like a button (alternating colors) or
-   * and if not a button, an an additional set of sprites to add when hovered, or clicked.
    */
   function checkMouseInteractions() {
     let debug = true;
@@ -330,6 +389,21 @@ const conductor = (function () {
       running = false;
     },
     /**
+     * Sets the font to use on the canvas
+     * @param {number} fontSize the font size in pixels.
+     * @param {bool} true if bold, false otherwise (optional).
+     */
+    "setFont": function(fontSize, isBold){
+      canvas.style.fontFamily = "monospace";
+      canvas.style.fontSize =`${fontSize}px`;
+      if (isBold) {
+        canvas.style.fontWeight = 'bold';
+      }else{
+        canvas.style.fontWeight = 'normal';
+      }
+      console.log (canvas.style.cssText);
+    },
+    /**
      * Gets the size of the window.
      * @returns {Size} the width and height {w,h}
      */
@@ -364,7 +438,7 @@ const conductor = (function () {
      *  x,y  coordinates.
      * @param {String} color #RGB color.
      */
-    "addSpriteTo": function (name, points, color) {
+    "addSpriteTo": function (name, points, color, fill) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`Cannot add sprite.  '${name}' does not exist.`);
       }
@@ -377,8 +451,22 @@ const conductor = (function () {
       }
       objects[name].addSprite({
         "color": color,
-        "coords": polarCoordinates
+        "coords": polarCoordinates,
+        "fill": fill
       });
+    },
+    /**
+     * Adds a text label to a game object.
+     * @param {string} name the name of the object to add the text to.
+     * @param {string} text the text to draw..
+     * @param {Point} offset the position to place the text {0,0} would be at the centered on the sprite.
+     */
+    "setLabelOf": function (name, text, offset, color) {
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`${name} does not exist.`);
+      } else {
+        objects[name].setLabel(text, offset, color);
+      }
     },
     /** 
    * Set the position of game object, in Game Coordinates.
@@ -398,7 +486,7 @@ const conductor = (function () {
      * @param {number} orientation the orientation/direction, in radians.
      */
     "setOrientationOf": function (name, orientation) {
-      if (!has(name)) {
+      if (!Object.hasOwn(objects, name)) {
         throw new Error(`cannot set position: ${name} does not exist.`);
       } else {
         objects[name].setOrientation(orientation);
@@ -425,7 +513,10 @@ const conductor = (function () {
         throw Error(`${name} already exists.`);
       } else {
         objects[name] = new (function () {
+          //Sprite {name, coords, color, fill}
           const sprites = [];
+          //text, offset
+          let label = null;
           let gx = 0;
           let gy = 0;
           let orientation = 0;
@@ -463,17 +554,33 @@ const conductor = (function () {
             /** Gets the sprites used to draw this Game Object. A sprite {color,
              *  coords} is an array of polar coordinates {r,a} (radius and 
              * azimuth), and a color.                         
-             * @returns {[Sprite]} An array of sprites 
+             * @returns {[Sprite]} An array of sprites {
              */
             "getSprites": function () {
               return sprites;
             },
-            /** Adds a sprite to this Game Object. A sprite {color,
-             *  coords} is an array of polar coordinates {r,a} (radius and 
-             * azimuth), and a color.                         
+            /**
+             * Adds a sprite to this Game Object. A sprite {color,
+             * coords} is an array of polar coordinates {r,a} (radius and 
+             * azimuth), a color, fill (.                         
              */
             "addSprite": function (sprite) {
               sprites.push(sprite);
+            },
+            /**
+             * Adds a text label to  be drawn with the sprite.
+             * @param {string} text the label to attach to the sprite.
+             * @param {Point} offset the position (from the center of the sprite) to place the label.
+             */
+            "setLabel": function (text, offset, color) {
+              label = { "text": text, "offset": offset, "color": color };
+            },
+            /**
+             * Gets the label to be drawn with the sprite.
+             * @return the label {text, offset, color}
+             */
+            "getLabel": function () {
+              return label;
             },
             /**
              * Gets the objects position in Game Coordinates
@@ -515,10 +622,13 @@ const conductor = (function () {
              * considered for mouse interaction if it isn't on the screen.
              * @param {bool} visible true or false.
              */
-            
+
             "setOnScreen": function (visible) {
               onScreen = visible;
             },
+            /**Returns the state of this objects interactivity
+             * @returns true if this can interact with the mouse, false otherwise.
+             */
             "isInteractive": function () {
               return interactive;
             },
@@ -526,10 +636,10 @@ const conductor = (function () {
              * Gives the object permission to interact with the mouse.
              * @param {bool} interacts true if it can be interacted with, false otherwise.
              */
-            "setInteractive" : function (interacts){
-              interactive = (interacts===true);
-              if (interactive !== true && interactive !==false){
-                throw new Error (`Interactive can only be true or false. ${interacts} is invalid`);
+            "setInteractive": function (interacts) {
+              interactive = (interacts === true);
+              if (interactive !== true && interactive !== false) {
+                throw new Error(`Interactive can only be true or false. ${interacts} is invalid`);
               }
             }
           }

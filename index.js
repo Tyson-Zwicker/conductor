@@ -1,5 +1,5 @@
 const setup = function () {
-  conductor.init('#012');
+  conductor.init('#012',true);
   conductor.setFont (14, true);
   conductor.setCamera (100,100,.5);
 
@@ -23,5 +23,5 @@ const setup = function () {
   conductor.setPositionOf ('button',35,25,true);
   conductor.setLabelOf ('button','Buttony',{"x":0,"y":0},'#fff');
   
-  conductor.runOnce();
+  conductor.startLoop(33);
 }

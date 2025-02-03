@@ -24,6 +24,8 @@ const conductor = (function () {
   var frameRate = null;
   var oldTime = new Date();
   var time = new Date();
+  var zoomOnWheel = false;
+
   var delta = 0;
   /**
    * The camera view the Game World, its coordinates reflect the Game Coordinate that will be at the center
@@ -36,7 +38,7 @@ const conductor = (function () {
    */
   var camera = { x: 0, y: 0, zoom: 1 }
 
-  var mouse = { "x": 0, "y": 0, "button": false };
+  var mouse = { "x": 0, "y": 0, wheel:0, "button": false };
   var hoveredObject = null;
   var pressedObject = null;
   var initialized = false;
@@ -78,7 +80,10 @@ const conductor = (function () {
   * @returns {Point} {x,y} Cartesian coordinates.
   */
   function fromPolar(polarCoordinate) {
-    return { "x": Math.cos(polarCoordinate.a) * polarCoordinate.r, "y": Math.sin(polarCoordinate.a) * polarCoordinate.r };
+    return { 
+      "x": Math.cos(polarCoordinate.a) * polarCoordinate.r,
+      "y": Math.sin(polarCoordinate.a) * polarCoordinate.r
+    };
   }
   /**
     * Converts a polar coordinate to a cartesian coordinate after applying rotation and translation.
@@ -163,6 +168,7 @@ const conductor = (function () {
         objectCenterPoint.y = screenCenter().y + (objectPosition.y - camera.y) * camera.zoom;
 
         if (debug) {
+          console.log (`applied camera zoom ${camera.zoom}`);
           console.log(`${objectName}'s position is is NOT fixed.`);
           console.log(`${objectName}'s Game Coordinates ${objectPosition.x},${objectPosition.y}`);
           console.log(`camera is at (${camera.x},${camera.y}`);
@@ -200,11 +206,15 @@ const conductor = (function () {
           }
           ctx.beginPath();
           sprite.coords.forEach(polarCoordinate => {
-            let spritePoint = undefined;
+            let spritePoint = {"x":undefined,"y":undefined};
             if (!objectPosition.isFixed) {
-              spritePoint = rotateTranslateTransform(polarCoordinate, object.getOrientation(), objectCenterPoint);
+              let rotatedScaledPolar = {
+                "a":polarCoordinate.a+object.getOrientation(),
+                "r":polarCoordinate.r*camera.zoom
+              };              
+              spritePoint =fromPolar (rotatedScaledPolar);
+              spritePoint =translate (spritePoint, objectCenterPoint);              
             } else {
-
               spritePoint = fromPolar(polarCoordinate);
               if (debug) {
                 console.log(`fixed object sprite position from Polar: (${spritePoint.x},${spritePoint.y})`);
@@ -303,7 +313,8 @@ const conductor = (function () {
    * or if they have been clicked on.  If they have been clicked on, it will call that object's click
    * function, and pass it parameters associated with the object, if any have been defined.
    */
-  //TODO: apply camera..
+  //TODO: apply camera..THIS SHOULD JUST WORK because bounds are set by draw function, which already accounts
+  //for the zoom and pan of the camera.  TEST THIS PART!
   function checkMouseInteractions() {
     let debug = true;
 
@@ -373,18 +384,30 @@ const conductor = (function () {
     /**
      * Creates the canvas, set the background collor, attach event handlers..
      * @param {string} bgColor #RGB canvas background color.
+     * @param {bool} enableZoomOnWheel #(optional) if true, the camera zoom will be affected by the mouse wheel.
      */
-    "init": function (bgColor) {
+    "init": function (bgColor, enableZoomOnWheel) {
       if (initialized) {
         throw new Error('You can only initialize it once.');
       } else {
         backgroundColor = (bgColor) ? bgColor : '#000';
+        zoomOnWheel =(enableZoomOnWheel)? enableZoomOnWheel:false;
         let body = document.getElementsByTagName('body')[0];
         body.style.margin = "0px";
         canvas = document.createElement('canvas');
         canvas.style.padding = "0px 0px 0px 0px";
         canvas.style.margin = "0px 0px 0px 0px";
         canvas.style.border = "0px";
+        canvas.onwheel = function (e) {
+          mouse.wheel = e.deltaY;
+          if (zoomOnWheel){
+            //-1 make bigger (zoom in) 1 make smaller (zoom out)
+            let change = -Math.sign (e.deltaY)*camera.zoom/10;
+            let oldZoom = camera.zoom;
+            camera.zoom = camera.zoom + change;
+            //console.log (`zoom changed from ${oldZoom} to ${camera.zoom} change ${change}`);
+          }
+        }
         canvas.onmousemove = function (e) {
           mouse.x = e.clientX;
           mouse.y = e.clientY;
@@ -417,9 +440,11 @@ const conductor = (function () {
      * @param {number} frameRateMillis the number of milliseconds to wait until running the main loop again.
      */
     "startLoop": function (frameRateMillis) {
+      if(!frameRateMillis ||Number.isNaN (frameRateMillis)) {
+        throw new Error (`Invalid frame rate ${frameRateMillis}`);
+      }
       frameRate = frameRateMillis;
-      //Only run once if no frame rate is defined.
-      running = (frameRateMillis) ? true : false;
+      running = true;
       mainLoop();
     },
     /**

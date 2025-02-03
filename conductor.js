@@ -14,7 +14,13 @@ the loop from continuing.
 */
 
 const conductor = (function () {
-  ///-------------------------PRIVATE-----------------------------------------
+  /*
+  
+  
+    -------------------------PRIVATE-----------------------------------------
+
+
+  */
   var objects = {};
   var canvas = null;
   let ctx = null;
@@ -38,9 +44,11 @@ const conductor = (function () {
    */
   var camera = { x: 0, y: 0, zoom: 1 }
 
-  var mouse = { "x": 0, "y": 0, wheel:0, "button": false };
+  var mouse = { "x": 0, "y": 0, wheel: 0, "button": false };
   var hoveredObject = null;
   var pressedObject = null;
+  var radioGroups = {};
+
   var initialized = false;
   /**
    * Gets the width of text (depends on context's current font) and the text..
@@ -80,7 +88,7 @@ const conductor = (function () {
   * @returns {Point} {x,y} Cartesian coordinates.
   */
   function fromPolar(polarCoordinate) {
-    return { 
+    return {
       "x": Math.cos(polarCoordinate.a) * polarCoordinate.r,
       "y": Math.sin(polarCoordinate.a) * polarCoordinate.r
     };
@@ -168,7 +176,7 @@ const conductor = (function () {
         objectCenterPoint.y = screenCenter().y + (objectPosition.y - camera.y) * camera.zoom;
 
         if (debug) {
-          console.log (`applied camera zoom ${camera.zoom}`);
+          console.log(`applied camera zoom ${camera.zoom}`);
           console.log(`${objectName}'s position is is NOT fixed.`);
           console.log(`${objectName}'s Game Coordinates ${objectPosition.x},${objectPosition.y}`);
           console.log(`camera is at (${camera.x},${camera.y}`);
@@ -193,6 +201,9 @@ const conductor = (function () {
         }
         object.setOnScreen(true);
         let spriteBounds = { x0: undefined, y0: undefined, x1: undefined, y1: undefined };
+        //TODO: Get the proper sprite set (normal, hovered or pressed)..
+        //The rest should take care of itself as normal..  Oh and you need to
+        //get the right label color down where the labels get added.
         object.getSprites().forEach(sprite => {
           let firstPoint = true;
           if (debug) {
@@ -206,14 +217,14 @@ const conductor = (function () {
           }
           ctx.beginPath();
           sprite.coords.forEach(polarCoordinate => {
-            let spritePoint = {"x":undefined,"y":undefined};
+            let spritePoint = { "x": undefined, "y": undefined };
             if (!objectPosition.isFixed) {
               let rotatedScaledPolar = {
-                "a":polarCoordinate.a+object.getOrientation(),
-                "r":polarCoordinate.r*camera.zoom
-              };              
-              spritePoint =fromPolar (rotatedScaledPolar);
-              spritePoint =translate (spritePoint, objectCenterPoint);              
+                "a": polarCoordinate.a + object.getOrientation(),
+                "r": polarCoordinate.r * camera.zoom
+              };
+              spritePoint = fromPolar(rotatedScaledPolar);
+              spritePoint = translate(spritePoint, objectCenterPoint);
             } else {
               spritePoint = fromPolar(polarCoordinate);
               if (debug) {
@@ -282,7 +293,7 @@ const conductor = (function () {
           if (debug) {
             console.log(`${objectName} has a label..`);
           }
-
+          //TODO: get the correct text color (normal, hovered or pressed)..
           let labelX = objectCenterPoint.x + label.offset.x;
           let labelY = objectCenterPoint.y + label.offset.y;
           ctx.textBaseline = "middle";
@@ -313,8 +324,7 @@ const conductor = (function () {
    * or if they have been clicked on.  If they have been clicked on, it will call that object's click
    * function, and pass it parameters associated with the object, if any have been defined.
    */
-  //TODO: apply camera..THIS SHOULD JUST WORK because bounds are set by draw function, which already accounts
-  //for the zoom and pan of the camera.  TEST THIS PART!
+  
   function checkMouseInteractions() {
     let debug = true;
 
@@ -339,7 +349,7 @@ const conductor = (function () {
                 console.log(`hovered.`);
               }
               hoveredObject = object;
-              pressedObject = null;
+              pressedObject = null;              
             }
             else if (mouse.button && hoveredObject === object) {
               //button was pressed while it was hovering on this object
@@ -352,6 +362,19 @@ const conductor = (function () {
               //The button was released on the same object pressed on.. CLICK!
               if (debug) {
                 console.log(`clicked.`);
+              }
+              //if it is a toggle, invert its toggled state.
+              if (object.isToggle()) {
+                object.setToggled (!object.isToggled());
+              }
+              else if (object.inRadioGroup()){
+                //Untoggled everything in the group..
+                let radioGroupName = object.getRadioGroup();
+                radioGroups[radioGroupName].forEach (objectInRadioGroup=>{
+                  objectInRadioGroup.setToggled (false);
+                });
+                //and set this objects toggled state to true..
+                object.setToggled (true);
               }
               let clickFn = object.getClickFn();
               let clickParam = object.getClickParam();
@@ -379,7 +402,13 @@ const conductor = (function () {
     if (running) setTimeout(mainLoop, frameRate);
   }
 
-  //-----------------------------PUBLIC----------------------------------------
+  /*
+  
+  
+      -----------------------------PUBLIC----------------------------------------
+
+
+  */
   return {
     /**
      * Creates the canvas, set the background collor, attach event handlers..
@@ -391,7 +420,7 @@ const conductor = (function () {
         throw new Error('You can only initialize it once.');
       } else {
         backgroundColor = (bgColor) ? bgColor : '#000';
-        zoomOnWheel =(enableZoomOnWheel)? enableZoomOnWheel:false;
+        zoomOnWheel = (enableZoomOnWheel) ? enableZoomOnWheel : false;
         let body = document.getElementsByTagName('body')[0];
         body.style.margin = "0px";
         canvas = document.createElement('canvas');
@@ -400,9 +429,9 @@ const conductor = (function () {
         canvas.style.border = "0px";
         canvas.onwheel = function (e) {
           mouse.wheel = e.deltaY;
-          if (zoomOnWheel){
+          if (zoomOnWheel) {
             //-1 make bigger (zoom in) 1 make smaller (zoom out)
-            let change = -Math.sign (e.deltaY)*camera.zoom/10;
+            let change = -Math.sign(e.deltaY) * camera.zoom / 10;
             let oldZoom = camera.zoom;
             camera.zoom = camera.zoom + change;
             //console.log (`zoom changed from ${oldZoom} to ${camera.zoom} change ${change}`);
@@ -440,8 +469,8 @@ const conductor = (function () {
      * @param {number} frameRateMillis the number of milliseconds to wait until running the main loop again.
      */
     "startLoop": function (frameRateMillis) {
-      if(!frameRateMillis ||Number.isNaN (frameRateMillis)) {
-        throw new Error (`Invalid frame rate ${frameRateMillis}`);
+      if (!frameRateMillis || Number.isNaN(frameRateMillis)) {
+        throw new Error(`Invalid frame rate ${frameRateMillis}`);
       }
       frameRate = frameRateMillis;
       running = true;
@@ -583,18 +612,57 @@ const conductor = (function () {
       }
       return Object.hasOwn(objects, name);
     },
+    "registerWithRadioGroup": function(objectName, groupName){
+      if (!Object.hasOwn (objects,objectName)){
+        throw new Error (`${objectName} does not exist.`);
+      }else{
+        if (!Object.hasOwn (radioGroups, groupName)){
+          radioGroups [groupName] = [];
+        }
+        radioGroups[groupName].push (objects[objectName]);
+        objects[objectName].setRadioGroup (groupName);
+      }
+    },
+    "setClickFunctionOf": function (objectName, fn, params){
+      if (!Object.hasOwn (objects,objectName)){
+        throw new Error (`${objectName} does not exist.`);
+      }else{
+        objects[objectName].setClickFunction (fn,params);        
+      }
+    },
+    "setAsToggle":function (objectName){
+      if (!Object.hasOwn (objects,objectName)){
+        throw new Error (`${objectName} does not exist.`);
+      }else{
+        objects[objectName].setToggleable(true);
+      }
+    },
+    /*
+
+
+
+            |---------------------  CREATE A GAME OBJECT ---------------------|
+
+
+
+     */
+
     /**
      * Creates a game object
-     * @param {string} name - what you want to call it. Must be unique.
+     * @param {string} objectName - what you want to call it. Must be unique.
      */
-    "create": function (name) {
-      if (Object.hasOwn(objects, name)) {
-        throw Error(`${name} already exists.`);
+    "create": function (objectName) {
+      if (Object.hasOwn(objects, objectName)) {
+        throw Error(`${objectName} already exists.`);
       } else {
-        objects[name] = new (function () {
+        objects[objectName] = new (function () {
           //Sprite {name, coords, color, fill}
+          let name = objectName;
           const sprites = [];
+          const hoveredSprites=[];
+          const pressedSprites=[];
           //text, offset
+          const parts = {};
           let label = null;
           let gx = -1;
           let gy = -1;
@@ -603,22 +671,19 @@ const conductor = (function () {
           let positionIsFixed = false;
           let orientation = 0;
           let onScreen = false;
-          let interactive = false;
+          let isInteractive = false;
+          let isToggle = false;
+          let isToggled = false;
+          let inRadioGroup = false;
+          let radioGroupName = null;
           let bounds = { "x0": -1, "y0": -1, "x1": -1, "y1": -1 };
           let clickFn = null;
           let clickParam = null;
           return {
-            "setClickParam": function (param) {
-              clickParam = param;
-            },
-            "getClickParam": function () {
-              return clickParam;
-            },
-            "setClickFn": function (fn) {
-              clickFn = fn;
-            },
-            "getClickFn": function (fn) {
-              return clickFn;
+            "addPart": function (partName, sprites, offset, initalOrientation) {
+              if (Object.hasOwn (parts, partName)){
+                console.log (`${name} already contains part '${partName}'`);
+              }
             },
             "getBounds": function () {
               return bounds;
@@ -636,7 +701,7 @@ const conductor = (function () {
             /** Gets the sprites used to draw this Game Object. A sprite {color,
              *  coords} is an array of polar coordinates {r,a} (radius and 
              * azimuth), and a color.                         
-             * @returns {[Sprite]} An array of sprites {
+             * @returns {[Sprite]} An array of sprites.
              */
             "getSprites": function () {
               return sprites;
@@ -644,10 +709,27 @@ const conductor = (function () {
             /**
              * Adds a sprite to this Game Object. A sprite {color,
              * coords} is an array of polar coordinates {r,a} (radius and 
-             * azimuth), a color, fill (.                         
+             * azimuth), a color, fill (optional).                         
              */
             "addSprite": function (sprite) {
               sprites.push(sprite);
+            },
+            /**
+             * Adds a sprite to this Game Object used when the object is hovered over with the
+             * muouse. A sprite {color, coords} is an array of polar coordinates {r,a}
+             * (radius and azimuth), a color, fill (optional).                         
+             */
+            "addHoverSprite": function(sprite){
+              hoveredSprites.push (sprite);
+            },
+            "addPressedSprite": function (sprite){
+              pressedSprites.push (sprite);
+            },
+            "getHoveredSprites": function(){
+              return hoveredSprites;
+            },
+            "getPressedSprites" : function(){
+              return pressedSprites;
             },
             /**
              * Adds a text label to  be drawn with the sprite.
@@ -732,18 +814,47 @@ const conductor = (function () {
              * @returns true if this can interact with the mouse, false otherwise.
              */
             "isInteractive": function () {
-              return interactive;
+              return isInteractive;
             },
             /**
              * Gives the object permission to interact with the mouse.
              * @param {bool} interacts true if it can be interacted with, false otherwise.
              */
             "setInteractive": function (interacts) {
-              interactive = (interacts === true);
-              if (interactive !== true && interactive !== false) {
+              isInteractive = (interacts === true);
+              if (isInteractive !== true && interactive !== false) {
                 throw new Error(`Interactive can only be true or false. ${interacts} is invalid`);
               }
-            }
+            },          
+            "getClickParam": function () {
+              return clickParam;
+            },
+            "setClickFn": function (fn, clickPram) {
+              clickFn = fn;
+              clickParam = clickPram;
+            },
+            "getClickFn": function (fn) {
+              return clickFn;
+            },
+            "isToggle": function(){
+              return isToggle;
+            },
+            "isToggled": function(){
+              return isToggled;
+            },
+            "setToggled" : function(state){
+              isToggled = state;
+            },
+            "inRadioGroup": function(){
+              return inRadioGroup;
+            },
+            "getRadioGroup":function(){
+              return radioGroupName;
+            },
+            "setRadioGroup":function(groupName){
+              radioGroupName = groupName;
+              inRadioGroup = true;
+            }         
           }
         })();
       }

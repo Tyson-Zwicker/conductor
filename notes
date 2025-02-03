@@ -19,7 +19,7 @@ Kinds of game objects:
   - do not have label
 
 3. Button:
-  - fixed on screen position (no game coordinates) (is NOT mover)*
+  - fixed on screen position (no game coordinates) (is NOT mover)
   - bounds do not need to be recalculated.
   - can interact with mouse
   - can have text label (fixed offset - centered in bounds)
@@ -43,10 +43,77 @@ TASKS:
   * +add fixed screen coords (for buttons)
   * +add mouse-wheel event, provide an option for the user to enable it, and have it change the camera zoom level 
     automatically.
-  * add velocity and spin
+  * add alternate sprites for hover and press.
   * add parts.
+  * add velocity and spin
   * implement a color system (for particle fade)
   * add particles
   * add a function that will add a user-defined function to be called when the canvas is clicked, but no game object was
     the recipient of the click (the mouse clicked nothing)
   
+  Implementing toggle/radio/alt sprites:
+
+  TESTS:
+    -clickFn called..
+    -Toggles..
+    -RadioGroups..
+    -Still works after zoom change?
+
+  Objects have:
+
+  The objects track their own state.  This is what is used
+  when they are drawn.
+
+    functions:
+    - getPressedSprites()
+    - getHoveredSprites()
+    - addPressedSprite()
+    - addHoveredSprite()
+    - isToggled()
+    - isToggle()
+    - setToggled(bool)
+    - setToggleable (bool) ** TODO 
+    - inRadioGroup()
+    - getRadioGroup()
+    - setRadioGroup()
+    
+    private variables:
+    - isToggle  <- wether you togglable
+    - isToggled <- State of being toggled.  Toggles AND 
+      radios use this!!
+    - inRadioGroup
+    - radioGroupName
+    - isInteractive
+
+Conductor has:
+
+  These are not meant to be stateful, they're just keeping
+  track of the frame by frame actions of the mouse so it
+  can tell if a button shouldn't be hovered on anymore,
+  and has been pressed.  Hovered and pressed object should be used to show alt sprites
+  when draw.  The object's own isToggled should ALSO be checked to see if the
+  pressedSprite should be used.
+  
+  - hoveredObject
+  - pressedObject
+  - radioGroups: An object (properites are group name)
+  that contains arrays of Game Objects belonging to the
+  radiogroup under that property.
+
+The OBJECTS track their own state, and should be notified
+when that changes.
+
+An object can be either either a toggle a radio or neither.
+
+  - neither : don't worry about anything.
+  - isToggle  : switch when clicked, easy enough.
+  - radio : more complicated because it has to tell
+    all of the other objects in the radio group to 
+    not be toggled anymore. SO..
+
+Conductor required to keep track of radio groups.
+  
+RADIO GROUPMEMBERSHIP must be assigned through the 
+conductor so we'll need a:
+
+registerWithRadioGroup() method that associated it..

@@ -39,13 +39,13 @@ TASKS:
   * +allow for unfilled sprite
   * +attach text (with offset)
   * add velocity and spin
-  * ->add camera translation 
-  * ->add camera zoom functionality
+  * +add camera translation 
+  * +add camera zoom functionality to draw..
   * add mouse-wheel event, provide an option for the user to enable it, and have it change the camera zoom level 
     automatically.
   * +add fixed screen coords (for buttons)
   * add parts.
-  * implement a color system
+  * implement a color system (for particle fade)
   * add particles
   * add a function that will add a user-defined function to be called when the canvas is clicked, but no game object was
     the recipient of the click (the mouse clicked nothing)

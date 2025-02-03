@@ -67,8 +67,8 @@ const conductor = (function () {
   * @param {number} aangle polar coodinate azimuth
   * @returns {Point} {x,y} Cartesian coordinates.
   */
-  function fromPolar(radius, angle) {
-    return { "x": Math.cos(angle) * radius, "y": Math.sin(angle) * radius };
+  function fromPolar(polarCoordinate) {
+    return { "x": Math.cos(polarCoordinate.a) * polarCoordinate.r, "y": Math.sin(polarCoordinate.a) * polarCoordinate.r };
   }
   /**
     * Converts a polar coordinate to a cartesian coordinate after applying rotation and translation.
@@ -146,13 +146,35 @@ const conductor = (function () {
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
       let objectPosition = object.getPosition();
-      let centerPoint = translate(objectPosition, screenCenter());
+      let objectCenterPoint = undefined;
+      
+      console.log (objectPosition);
+      
+      if (!objectPosition.isFixed) {
+        
+        objectCenterPoint = translate(objectPosition, screenCenter());
+        //TODO:  Translate due to camera, when implimented.
+        //TODO:  Add affect of zooming.
+        if (debug) {
+          console.log(`${objectName}'s position is is NOT fixed.`);
+          console.log(`${objectName}'s Game Coordinates ${objectPosition.x},${objectPosition.y}`);
+          console.log(`translated to center of screen: ${objectCenterPoint.x},${objectCenterPoint.y}`);
+        }
+      
+      } else {
+        objectCenterPoint = objectPosition;
+
+        if (debug) {
+          console.log(`${objectName}'s position is fixed to (${objectCenterPoint.x},${objectCenterPoint.y})- do not translate to center of the screen.`);
+        }
+      
+      }
+
       if (debug) {
-        console.log(`object's position ${objectPosition.x},${objectPosition.y}`);
-        console.log(`translated to center of screen: ${centerPoint.x},${centerPoint.y}`);
         console.log(`object has ${object.getSprites().length} sprite(s).`);
       }
-      if (isBounded(centerPoint, screenBounds()) && object.getSprites().length > 0) {
+
+      if (isBounded(objectCenterPoint, screenBounds()) && object.getSprites().length > 0) {
         if (debug) {
           console.log(`object is inside the screen boundry, and has some sprite.`);
         }
@@ -171,8 +193,20 @@ const conductor = (function () {
           }
           ctx.beginPath();
           sprite.coords.forEach(polarCoordinate => {
-            let spritePoint = rotateTranslateTransform(polarCoordinate, object.getOrientation(), centerPoint);
-
+            let spritePoint = undefined;
+            if (!objectPosition.isFixed){
+              spritePoint = rotateTranslateTransform(polarCoordinate, object.getOrientation(), objectCenterPoint);
+            }else{
+              
+              spritePoint = fromPolar (polarCoordinate);
+              if (debug) {
+                console.log (`fixed object sprite position from Polar: (${spritePoint.x},${spritePoint.y})`);
+              }
+              spritePoint = translate (spritePoint, objectCenterPoint);
+              if (debug) {
+                console.log (`fixed object sprite position translated to objectCenterPoint: (${spritePoint.x},${spritePoint.y})`);
+              }
+            }
             if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
               spriteBounds.x0 = spritePoint.x;
             }
@@ -232,8 +266,8 @@ const conductor = (function () {
             console.log(`${objectName} has a label..`);
           }
 
-          let labelX = objectPosition.x + label.offset.x + screenCenter().x;
-          let labelY = objectPosition.y + label.offset.y + screenCenter().y;
+          let labelX = objectCenterPoint.x + label.offset.x;
+          let labelY = objectCenterPoint.y + label.offset.y;
           ctx.textBaseline = "middle";
           ctx.textAlign = "center";
           ctx.fillStyle = label.color;
@@ -468,12 +502,19 @@ const conductor = (function () {
    * @param {string} name The name fof the GameObject
    * @param {Number} x the x coordinate.
    * @param {Number} y the y coordinate.
+   * @param {bool} fixes (optional) if true, the {x,y} position is fixed on the screen (ie. it is not in Game 
+   * Coordinates and will not be affected by the camera or zooming.  If false, the position is in Game Coordinates.
+   * Used for GUI elements like buttons.
    */
-    "setPositionOf": function (name, x, y) {
+    "setPositionOf": function (name, x, y, fixed) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`cannot set position: ${name} does not exist.`);
       } else {
-        objects[name].setPosition(x, y);
+        if (fixed) {
+          objects[name].setFixedCoordinates(x, y);
+        } else {
+          objects[name].setGameCoordinates(x, y);
+        }
       }
     },
     /**
@@ -512,8 +553,11 @@ const conductor = (function () {
           const sprites = [];
           //text, offset
           let label = null;
-          let gx = 0;
-          let gy = 0;
+          let gx = -1;
+          let gy = -1;
+          let fx = -1;
+          let fy = -1;
+          let positionIsFixed = false;
           let orientation = 0;
           let onScreen = false;
           let interactive = false;
@@ -582,7 +626,11 @@ const conductor = (function () {
              * @returns {Point} Game coordinates.
              */
             "getPosition": function () {
-              return { "x": gx, "y": gy };
+              if (positionIsFixed) {
+                return { "x": fx, "y": fy, "isFixed": true };
+              } else {
+                return { "x": gx, "y": gy, "isFixed": false };
+              }
             },
             /**
              * Gets the orientation/direction the object is facing- In Radians.
@@ -593,12 +641,23 @@ const conductor = (function () {
             },
             /**
              * Sets the position of the object in Game Coordinates 
-             * @param {number} x the x coordinate.
-             * @param {number} y  the y coordinate.
+             * @param {number} x the x coordinate where the object is in the game world.
+             * @param {number} y  the y coordinate where the object is in the game world.
              */
-            "setPosition": function (x, y) {
+            "setGameCoordinates": function (x, y) {
               gx = x;
               gy = y;
+              positionIsFixed = false;
+            },
+            /**
+             * Sets the position of the object in fixed Screen Coordinates.
+             * @param {number} the x coordinate of the object on the screen.
+             * @param {number} the y coordinate of the object on the screen.
+             */
+            "setFixedCoordinates": function (x, y) {
+              fx = x;
+              fy = y;
+              positionIsFixed = true;
             },
             /**
              * Sets the orientation of the object in Game Cooridnates.

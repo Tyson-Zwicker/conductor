@@ -201,10 +201,15 @@ const conductor = (function () {
         }
         object.setOnScreen(true);
         let spriteBounds = { x0: undefined, y0: undefined, x1: undefined, y1: undefined };
-        //TODO: Get the proper sprite set (normal, hovered or pressed)..
-        //The rest should take care of itself as normal..  Oh and you need to
-        //get the right label color down where the labels get added.
-        object.getSprites().forEach(sprite => {
+        let spriteSet = undefined;
+        if (object.isToggled || object === pressedObject) {
+          spriteSet = object.getPressedSprite();
+        } else if (object === hoveredObject) {
+          spriteSet = object.getHoveredSprites();
+        } else {
+          spriteSet = object.getSprites();
+        }
+        spriteSet.getSprites().forEach(sprite => {
           let firstPoint = true;
           if (debug) {
             console.log(`drawing sprite with color ${sprite.color}`);
@@ -294,11 +299,19 @@ const conductor = (function () {
             console.log(`${objectName} has a label..`);
           }
           //TODO: get the correct text color (normal, hovered or pressed)..
+          let labelColor = undefined;
+          if (object.isToggled || object === pressedObject) {
+            labelColor = label.pressedColor;
+          } else if (object === hoveredObject) {
+            spriteSet = label.hoveredColor;
+          } else {
+            spriteSet = label.color;
+          }
           let labelX = objectCenterPoint.x + label.offset.x;
           let labelY = objectCenterPoint.y + label.offset.y;
           ctx.textBaseline = "middle";
           ctx.textAlign = "center";
-          ctx.fillStyle = label.color;
+          ctx.fillStyle = labelColor;
 
           if (debug) {
             console.log(`drawing label '${label.text}' at (${labelX},${labelY})`);
@@ -324,7 +337,7 @@ const conductor = (function () {
    * or if they have been clicked on.  If they have been clicked on, it will call that object's click
    * function, and pass it parameters associated with the object, if any have been defined.
    */
-  
+
   function checkMouseInteractions() {
     let debug = true;
 
@@ -349,7 +362,7 @@ const conductor = (function () {
                 console.log(`hovered.`);
               }
               hoveredObject = object;
-              pressedObject = null;              
+              pressedObject = null;
             }
             else if (mouse.button && hoveredObject === object) {
               //button was pressed while it was hovering on this object
@@ -365,16 +378,16 @@ const conductor = (function () {
               }
               //if it is a toggle, invert its toggled state.
               if (object.isToggle()) {
-                object.setToggled (!object.isToggled());
+                object.setToggled(!object.isToggled());
               }
-              else if (object.inRadioGroup()){
+              else if (object.inRadioGroup()) {
                 //Untoggled everything in the group..
                 let radioGroupName = object.getRadioGroup();
-                radioGroups[radioGroupName].forEach (objectInRadioGroup=>{
-                  objectInRadioGroup.setToggled (false);
+                radioGroups[radioGroupName].forEach(objectInRadioGroup => {
+                  objectInRadioGroup.setToggled(false);
                 });
                 //and set this objects toggled state to true..
-                object.setToggled (true);
+                object.setToggled(true);
               }
               let clickFn = object.getClickFn();
               let clickParam = object.getClickParam();
@@ -562,11 +575,12 @@ const conductor = (function () {
      * @param {string} text the text to draw..
      * @param {Point} offset the position to place the text {0,0} would be at the centered on the sprite.
      */
-    "setLabelOf": function (name, text, offset, color) {
+
+    "setLabelOf": function (name, text, offset, color, hovered, pressed) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`${name} does not exist.`);
       } else {
-        objects[name].setLabel(text, offset, color);
+        objects[name].setLabel(text, offset, color, hovered, pressed);
       }
     },
     /** 
@@ -612,28 +626,28 @@ const conductor = (function () {
       }
       return Object.hasOwn(objects, name);
     },
-    "registerWithRadioGroup": function(objectName, groupName){
-      if (!Object.hasOwn (objects,objectName)){
-        throw new Error (`${objectName} does not exist.`);
-      }else{
-        if (!Object.hasOwn (radioGroups, groupName)){
-          radioGroups [groupName] = [];
+    "registerWithRadioGroup": function (objectName, groupName) {
+      if (!Object.hasOwn(objects, objectName)) {
+        throw new Error(`${objectName} does not exist.`);
+      } else {
+        if (!Object.hasOwn(radioGroups, groupName)) {
+          radioGroups[groupName] = [];
         }
-        radioGroups[groupName].push (objects[objectName]);
-        objects[objectName].setRadioGroup (groupName);
+        radioGroups[groupName].push(objects[objectName]);
+        objects[objectName].setRadioGroup(groupName);
       }
     },
-    "setClickFunctionOf": function (objectName, fn, params){
-      if (!Object.hasOwn (objects,objectName)){
-        throw new Error (`${objectName} does not exist.`);
-      }else{
-        objects[objectName].setClickFunction (fn,params);        
+    "setClickFunctionOf": function (objectName, fn, params) {
+      if (!Object.hasOwn(objects, objectName)) {
+        throw new Error(`${objectName} does not exist.`);
+      } else {
+        objects[objectName].setClickFunction(fn, params);
       }
     },
-    "setAsToggle":function (objectName){
-      if (!Object.hasOwn (objects,objectName)){
-        throw new Error (`${objectName} does not exist.`);
-      }else{
+    "setAsToggle": function (objectName) {
+      if (!Object.hasOwn(objects, objectName)) {
+        throw new Error(`${objectName} does not exist.`);
+      } else {
         objects[objectName].setToggleable(true);
       }
     },
@@ -659,8 +673,8 @@ const conductor = (function () {
           //Sprite {name, coords, color, fill}
           let name = objectName;
           const sprites = [];
-          const hoveredSprites=[];
-          const pressedSprites=[];
+          const hoveredSprites = [];
+          const pressedSprites = [];
           //text, offset
           const parts = {};
           let label = null;
@@ -681,8 +695,8 @@ const conductor = (function () {
           let clickParam = null;
           return {
             "addPart": function (partName, sprites, offset, initalOrientation) {
-              if (Object.hasOwn (parts, partName)){
-                console.log (`${name} already contains part '${partName}'`);
+              if (Object.hasOwn(parts, partName)) {
+                console.log(`${name} already contains part '${partName}'`);
               }
             },
             "getBounds": function () {
@@ -719,16 +733,16 @@ const conductor = (function () {
              * muouse. A sprite {color, coords} is an array of polar coordinates {r,a}
              * (radius and azimuth), a color, fill (optional).                         
              */
-            "addHoverSprite": function(sprite){
-              hoveredSprites.push (sprite);
+            "addHoverSprite": function (sprite) {
+              hoveredSprites.push(sprite);
             },
-            "addPressedSprite": function (sprite){
-              pressedSprites.push (sprite);
+            "addPressedSprite": function (sprite) {
+              pressedSprites.push(sprite);
             },
-            "getHoveredSprites": function(){
+            "getHoveredSprites": function () {
               return hoveredSprites;
             },
-            "getPressedSprites" : function(){
+            "getPressedSprites": function () {
               return pressedSprites;
             },
             /**
@@ -736,8 +750,14 @@ const conductor = (function () {
              * @param {string} text the label to attach to the sprite.
              * @param {Point} offset the position (from the center of the sprite) to place the label.
              */
-            "setLabel": function (text, offset, color) {
-              label = { "text": text, "offset": offset, "color": color };
+            "setLabel": function (text, offset, color, hoveredColor, pressedColor) {
+              label = {
+                "text": text,
+                "offset": offset,
+                "color": color,
+                "hoveredColor": hoveredColor,
+                "pressedColor": pressedColor
+              };
             },
             /**
              * Gets the label to be drawn with the sprite.
@@ -825,7 +845,7 @@ const conductor = (function () {
               if (isInteractive !== true && interactive !== false) {
                 throw new Error(`Interactive can only be true or false. ${interacts} is invalid`);
               }
-            },          
+            },
             "getClickParam": function () {
               return clickParam;
             },
@@ -836,25 +856,28 @@ const conductor = (function () {
             "getClickFn": function (fn) {
               return clickFn;
             },
-            "isToggle": function(){
+            "isToggle": function () {
               return isToggle;
             },
-            "isToggled": function(){
+            "isToggled": function () {
               return isToggled;
             },
-            "setToggled" : function(state){
+            "setToggleable": function () {
+              isToggle = true;
+            },
+            "setToggled": function (state) {
               isToggled = state;
             },
-            "inRadioGroup": function(){
+            "inRadioGroup": function () {
               return inRadioGroup;
             },
-            "getRadioGroup":function(){
+            "getRadioGroup": function () {
               return radioGroupName;
             },
-            "setRadioGroup":function(groupName){
+            "setRadioGroup": function (groupName) {
               radioGroupName = groupName;
               inRadioGroup = true;
-            }         
+            }
           }
         })();
       }

@@ -1,7 +1,8 @@
 const setup = function () {
   conductor.init('#012');
   conductor.setFont (14, true);
-  
+  conductor.setCamera (100,100,.5);
+
   conductor.create('test');
   conductor.addSpriteTo('test', [0, -50, 30, 30, -30, 30], '#0f0');
   conductor.setPositionOf('test', -100, 0);

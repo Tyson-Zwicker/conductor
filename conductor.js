@@ -25,6 +25,16 @@ const conductor = (function () {
   var oldTime = new Date();
   var time = new Date();
   var delta = 0;
+  /**
+   * The camera view the Game World, its coordinates reflect the Game Coordinate that will be at the center
+   * of the screen when the world is drawn.  It also handles zooming.  A value of 1 is "normal" zoom.  Higher values
+   * will "zoom in", and values less than 1 will zoom out.  The zoom function works in two ways:
+   * First, it scales the sprites by being multiplied to their polar coordinate's radius.
+   * Second, it scales the "view port" such that zooming out will show more of the Game World.  This is done by 
+   * multiplying the distance between the Camera's coordinate, and the Game Object's coordinates.  A zoom level of 0
+   * will cause the entire Game World to appear as a single pixel in the middle of the screen.
+   */
+  var camera = {x:0, y:0, zoom:1}
 
   var mouse = { "x": 0, "y": 0, "button": false };
   var hoveredObject = null;

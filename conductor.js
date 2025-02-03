@@ -34,7 +34,7 @@ const conductor = (function () {
    * multiplying the distance between the Camera's coordinate, and the Game Object's coordinates.  A zoom level of 0
    * will cause the entire Game World to appear as a single pixel in the middle of the screen.
    */
-  var camera = {x:0, y:0, zoom:1}
+  var camera = { x: 0, y: 0, zoom: 1 }
 
   var mouse = { "x": 0, "y": 0, "button": false };
   var hoveredObject = null;
@@ -156,28 +156,25 @@ const conductor = (function () {
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
       let objectPosition = object.getPosition();
-      let objectCenterPoint = undefined;
-      
-      console.log (objectPosition);
-      
+      let objectCenterPoint = { "x": undefined, "y": undefined }
+
       if (!objectPosition.isFixed) {
-        
-        objectCenterPoint = translate(objectPosition, screenCenter());
-        //TODO:  Translate due to camera, when implimented.
-        //TODO:  Add affect of zooming.
+        objectCenterPoint.x = screenCenter().x + (objectPosition.x - camera.x) * camera.zoom;
+        objectCenterPoint.y = screenCenter().y + (objectPosition.y - camera.y) * camera.zoom;
+
         if (debug) {
           console.log(`${objectName}'s position is is NOT fixed.`);
           console.log(`${objectName}'s Game Coordinates ${objectPosition.x},${objectPosition.y}`);
-          console.log(`translated to center of screen: ${objectCenterPoint.x},${objectCenterPoint.y}`);
+          console.log(`camera is at (${camera.x},${camera.y}`);
+          console.log(`will be drawn at (${objectCenterPoint.x},${objectCenterPoint.y})`);
         }
-      
       } else {
         objectCenterPoint = objectPosition;
 
         if (debug) {
-          console.log(`${objectName}'s position is fixed to (${objectCenterPoint.x},${objectCenterPoint.y})- do not translate to center of the screen.`);
+          console.log(`${objectName}'s position is fixed to (${objectCenterPoint.x},${objectCenterPoint.y})`);
         }
-      
+
       }
 
       if (debug) {
@@ -204,17 +201,17 @@ const conductor = (function () {
           ctx.beginPath();
           sprite.coords.forEach(polarCoordinate => {
             let spritePoint = undefined;
-            if (!objectPosition.isFixed){
+            if (!objectPosition.isFixed) {
               spritePoint = rotateTranslateTransform(polarCoordinate, object.getOrientation(), objectCenterPoint);
-            }else{
-              
-              spritePoint = fromPolar (polarCoordinate);
+            } else {
+
+              spritePoint = fromPolar(polarCoordinate);
               if (debug) {
-                console.log (`fixed object sprite position from Polar: (${spritePoint.x},${spritePoint.y})`);
+                console.log(`fixed object sprite position from Polar: (${spritePoint.x},${spritePoint.y})`);
               }
-              spritePoint = translate (spritePoint, objectCenterPoint);
+              spritePoint = translate(spritePoint, objectCenterPoint);
               if (debug) {
-                console.log (`fixed object sprite position translated to objectCenterPoint: (${spritePoint.x},${spritePoint.y})`);
+                console.log(`fixed object sprite position translated to objectCenterPoint: (${spritePoint.x},${spritePoint.y})`);
               }
             }
             if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
@@ -306,6 +303,7 @@ const conductor = (function () {
    * or if they have been clicked on.  If they have been clicked on, it will call that object's click
    * function, and pass it parameters associated with the object, if any have been defined.
    */
+  //TODO: apply camera..
   function checkMouseInteractions() {
     let debug = true;
 
@@ -441,6 +439,16 @@ const conductor = (function () {
       } else {
         ctx.font = `${fontSize}px monospace`;
       }
+    },
+    /**Sets the position (in Game Coordinates) and zoom level of the camera.
+     * @param {number} x game coordinate of the camera on x-axis.
+     * @param {number} y game coordinate of the camera on y-axis.
+     * @param {number} zoom coom level of camera (<1 zooms out, >1 zooms in)
+     */
+    "setCamera": function (x, y, zoom) {
+      camera.x = x;
+      camera.y = y;
+      camera.zoom = zoom;
     },
     /**
      * Gets the size of the window.

@@ -1,0 +1,57 @@
+
+Kinds of game objects:
+
+1. Game Entity:
+  - exists in game coordinates which can change
+  - can rotate
+  - has own velocity and spin (is Mover)
+  - on screen position affected by the camera position and zoom levels.
+  - can interact with mouse
+  - can contain subparts
+  - can have text label (with offset, affected by zoom level)
+  - must have concept of toggle and radio
+
+2. Particle:
+  - has own velocity (is Mover)
+  - exists in game coordinates which change
+  - position can change with camera and zoom levels
+  - do not interact with mouse.
+  - do not have label
+
+3. Button:
+  - fixed on screen position (no game coordinates) (is NOT mover)*
+  - bounds do not need to be recalculated.
+  - can interact with mouse
+  - can have text label (fixed offset - centered in bounds)
+  - must have concept toggle and radio
+
+Commonality:
+
+  - they all need to have bounds in order to work with the mouse
+  - they all need to have a sprite to represent them
+  - most need a click event
+  - most need a hover and press alternate sprite
+  - most need a toggle setting.
+  - most need a text label
+  - buttons need a "fixed screen" coordinate.
+
+TASKS:
+  * +allow for unfilled sprite
+  * +attach text (with offset)
+  * add velocity and spin
+  * ->add camera translation 
+  * ->add camera zoom functionality
+  * add mouse-wheel event, provide an option for the user to enable it, and have it change the camera zoom level 
+    automatically.
+  * +add fixed screen coords (for buttons)
+  * add parts.
+  * implement a color system
+  * add particles
+  * add a function that will add a user-defined function to be called when the canvas is clicked, but no game object was
+    the recipient of the click (the mouse clicked nothing)
+  
+  
+
+
+
+

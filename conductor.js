@@ -17,7 +17,7 @@ const conductor = (function () {
   /*
   
   
-    -------------------------PRIVATE-----------------------------------------
+   -------------------------PRIVATE-----------------------------------------
 
 
   */
@@ -25,30 +25,22 @@ const conductor = (function () {
   var canvas = null;
   let ctx = null;
   var backgroundColor = null;
-
   var running = false;    //Is the mainloop supposed to keep going?
   var frameRate = null;
   var oldTime = new Date();
   var time = new Date();
   var zoomOnWheel = false;
-
   var delta = 0;
   /**
    * The camera view the Game World, its coordinates reflect the Game Coordinate that will be at the center
-   * of the screen when the world is drawn.  It also handles zooming.  A value of 1 is "normal" zoom.  Higher values
-   * will "zoom in", and values less than 1 will zoom out.  The zoom function works in two ways:
-   * First, it scales the sprites by being multiplied to their polar coordinate's radius.
-   * Second, it scales the "view port" such that zooming out will show more of the Game World.  This is done by 
-   * multiplying the distance between the Camera's coordinate, and the Game Object's coordinates.  A zoom level of 0
-   * will cause the entire Game World to appear as a single pixel in the middle of the screen.
+   * of the screen. It also handles zooming.  A zoom value of 1 is "normal" zoom.  Higher values
+   * will "zoom in", and values less than 1 will zoom out.  Zoom value must be greater than 0.
    */
   var camera = { x: 0, y: 0, zoom: 1 }
-
-  var mouse = { "x": 0, "y": 0, wheel: 0, "button": false };
+  var mouse = { "x": 0, "y": 0, wheel: 0, "button": false }; //Coordinates, wheel spin direction, button (true=pressed)
   var hoveredObject = null;
   var pressedObject = null;
   var radioGroups = {};
-
   var initialized = false;
   /**
    * Gets the width of text (depends on context's current font) and the text..
@@ -113,12 +105,6 @@ const conductor = (function () {
    * @returns true if the point is withing the rectanlge, false if not.
    */
   function isBounded(point, bounds) {
-    let debug = true;
-
-    if (debug) {
-      console.log(`Is ${point.x},${point.y} bounded by (${bounds.x0}, ${bounds.y0}) , (${bounds.x1},${bounds.y1})?`);
-      console.log(`Bounded is ${(point.x > bounds.x0 && point.y > bounds.y0 && point.x < bounds.x1 && point.y < bounds.y1)}`);
-    }
     return (point.x > bounds.x0 && point.y > bounds.y0 && point.x < bounds.x1 && point.y < bounds.y1);
   }
   /**
@@ -164,56 +150,32 @@ const conductor = (function () {
    * an object with {0,0} will appear centered on the screen.
    */
   function drawObjects() {
-    let debug = true;
-
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
       let objectPosition = object.getPosition();
       let objectCenterPoint = { "x": undefined, "y": undefined }
-
       if (!objectPosition.isFixed) {
         objectCenterPoint.x = screenCenter().x + (objectPosition.x - camera.x) * camera.zoom;
         objectCenterPoint.y = screenCenter().y + (objectPosition.y - camera.y) * camera.zoom;
-
-        if (debug) {
-          console.log(`applied camera zoom ${camera.zoom}`);
-          console.log(`${objectName}'s position is is NOT fixed.`);
-          console.log(`${objectName}'s Game Coordinates ${objectPosition.x},${objectPosition.y}`);
-          console.log(`camera is at (${camera.x},${camera.y}`);
-          console.log(`will be drawn at (${objectCenterPoint.x},${objectCenterPoint.y})`);
-        }
       } else {
         objectCenterPoint = objectPosition;
-
-        if (debug) {
-          console.log(`${objectName}'s position is fixed to (${objectCenterPoint.x},${objectCenterPoint.y})`);
-        }
-
       }
-
-      if (debug) {
-        console.log(`object has ${object.getSprites().length} sprite(s).`);
-      }
-
       if (isBounded(objectCenterPoint, screenBounds()) && object.getSprites().length > 0) {
-        if (debug) {
-          console.log(`object is inside the screen boundry, and has some sprite.`);
-        }
         object.setOnScreen(true);
+        //spriteBounds will capture the furthest point a sprite is drawn from the game object's center, 
+        //which will be used to make the box used for mouse interaction as accurate as possible.
         let spriteBounds = { x0: undefined, y0: undefined, x1: undefined, y1: undefined };
+        //Sprite set depends on the objects state of interaction with the mouse.
         let spriteSet = undefined;
-        if (object.isToggled || object === pressedObject) {
-          spriteSet = object.getPressedSprite();
+        if (object.isToggled() || object === pressedObject) {
+          spriteSet = object.getPressedSprites();
         } else if (object === hoveredObject) {
           spriteSet = object.getHoveredSprites();
         } else {
           spriteSet = object.getSprites();
         }
-        spriteSet.getSprites().forEach(sprite => {
+        spriteSet.forEach(sprite => {
           let firstPoint = true;
-          if (debug) {
-            console.log(`drawing sprite with color ${sprite.color}`);
-          }
           if (sprite.fill) {
             ctx.fillStyle = sprite.color;
           } else {
@@ -232,14 +194,9 @@ const conductor = (function () {
               spritePoint = translate(spritePoint, objectCenterPoint);
             } else {
               spritePoint = fromPolar(polarCoordinate);
-              if (debug) {
-                console.log(`fixed object sprite position from Polar: (${spritePoint.x},${spritePoint.y})`);
-              }
               spritePoint = translate(spritePoint, objectCenterPoint);
-              if (debug) {
-                console.log(`fixed object sprite position translated to objectCenterPoint: (${spritePoint.x},${spritePoint.y})`);
-              }
             }
+            //Check to see if this point extends, or defines, one of the bounds of the game object.
             if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
               spriteBounds.x0 = spritePoint.x;
             }
@@ -252,82 +209,49 @@ const conductor = (function () {
             if (spriteBounds.y1 === undefined || spriteBounds.y1 < spritePoint.y) {
               spriteBounds.y1 = spritePoint.y;
             }
+            //First point must be moved to, the rest are lined to.  The final point doesn't need to return
+            //to the starting point, closing the path does that automatically.
             if (firstPoint) {
               ctx.moveTo(spritePoint.x, spritePoint.y);
-
-              if (debug) {
-                console.log(`  move to Sprite Point ${spritePoint.x},${spritePoint.y}`);
-              }
-
               firstPoint = false;
             } else {
               ctx.lineTo(spritePoint.x, spritePoint.y);
-
-              if (debug) {
-                console.log(`  line to Sprite Point ${spritePoint.x},${spritePoint.y}`);
-              }
-
             }
             //set bounds..
-            object.setBounds(spriteBounds);
+            
           });//next sprite coordinate...          
-          if (debug) {
-            console.log(`closing sprite path...`);
-          }
           ctx.closePath();
-          if (sprite.fill) {
-            if (debug) {
-              console.log(`...and filling.`);
-            }
+          if (sprite.fill) {            
             ctx.fill();
           } else {
-            if (debug) {
-              console.log(`...and stroke.`);
-            }
             ctx.stroke();
           }
         });//next sprite..
-
-        if (debug) {
-          console.log(`All sprites for ${objectName} created spriteBounds (${spriteBounds.x0}, ${spriteBounds.y0}) , (${spriteBounds.x1},${spriteBounds.y1})`);
-        }
-
-        let label = object.getLabel();
+        object.setBounds(spriteBounds); //All sprites are drawn, safe to apply bounds..
+        let label = object.getLabel(); //Now draw a label if one is defined.
         if (label) {
-
-          if (debug) {
-            console.log(`${objectName} has a label..`);
-          }
-          //TODO: get the correct text color (normal, hovered or pressed)..
-          let labelColor = undefined;
-          if (object.isToggled || object === pressedObject) {
+          let labelColor = undefined; //depends on game objects interaction with the mouse..
+          if (object.isToggled() || object === pressedObject) {
             labelColor = label.pressedColor;
+            if (labelColor ===undefined){
+              throw new Error (`${objectName} does not specify a label for pressed state`);
+            }
           } else if (object === hoveredObject) {
-            spriteSet = label.hoveredColor;
+            labelColor = label.hoveredColor;            
+            if (labelColor ===undefined){
+              throw new Error (`${objectName} does not specify a label for hovered state`);
+            }
           } else {
-            spriteSet = label.color;
-          }
+            labelColor = label.color;
+          }          
           let labelX = objectCenterPoint.x + label.offset.x;
           let labelY = objectCenterPoint.y + label.offset.y;
           ctx.textBaseline = "middle";
           ctx.textAlign = "center";
           ctx.fillStyle = labelColor;
-
-          if (debug) {
-            console.log(`drawing label '${label.text}' at (${labelX},${labelY})`);
-          }
           ctx.fillText(label.text, labelX, labelY);
-        } else {
-
-          if (debug) {
-            console.log('This object has no label.');
-          }
-
         }
       } else {
-        if (debug) {
-          console.log(`game object ${objectName} is not on the screen`);
-        }
         object.setOnScreen(false);
       }
     });//next object..
@@ -340,7 +264,6 @@ const conductor = (function () {
 
   function checkMouseInteractions() {
     let debug = true;
-
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
       if (debug) {
@@ -356,8 +279,7 @@ const conductor = (function () {
             if (debug) {
               console.log(`${objectName} bounds mouse position ${mouse.x},${mouse.y}`);
             }
-            if (mouse.button === false && hoveredObject !== object) {
-              //a newly hovered object
+            if (mouse.button === false && hoveredObject !== object) {//a newly hovered object
               if (debug) {
                 console.log(`hovered.`);
               }
@@ -376,18 +298,15 @@ const conductor = (function () {
               if (debug) {
                 console.log(`clicked.`);
               }
-              //if it is a toggle, invert its toggled state.
-              if (object.isToggle()) {
+              if (object.isToggle()) {//if it is a toggle, invert its toggled state.
                 object.setToggled(!object.isToggled());
               }
               else if (object.inRadioGroup()) {
-                //Untoggled everything in the group..
-                let radioGroupName = object.getRadioGroup();
+                let radioGroupName = object.getRadioGroup();  //Untoggled everything in the group..
                 radioGroups[radioGroupName].forEach(objectInRadioGroup => {
                   objectInRadioGroup.setToggled(false);
                 });
-                //and set this objects toggled state to true..
-                object.setToggled(true);
+                object.setToggled(true);//and set this objects toggled state to true..
               }
               let clickFn = object.getClickFn();
               let clickParam = object.getClickParam();
@@ -414,7 +333,6 @@ const conductor = (function () {
     drawObjects();
     if (running) setTimeout(mainLoop, frameRate);
   }
-
   /*
   
   
@@ -557,7 +475,7 @@ const conductor = (function () {
         throw new Error(`Cannot add sprite.  '${name}' does not exist.`);
       }
       if (points.length % 2 !== 0) {
-        throw Error(`points must be pairs of numbers`);
+        throw Error(`Uneven number of sprite points: sprite points must pairs of numbers (ie. coordinates: x,y,...)`);
       }
       let polarCoordinates = [];
       for (let i = 0; i < points.length; i = i + 2) {
@@ -570,12 +488,14 @@ const conductor = (function () {
       });
     },
     /**
-     * Adds a text label to a game object.
-     * @param {string} name the name of the object to add the text to.
-     * @param {string} text the text to draw..
-     * @param {Point} offset the position to place the text {0,0} would be at the centered on the sprite.
-     */
-
+      * Adds a text label to a game object.
+      * @param {string} name the name of the object to add the text to.
+      * @param {string} text the text to draw..
+      * @param {Point} offset the position to place the text {0,0} would be at the centered on the sprite.
+      * @param {string} color #RGB color, used when object is shown "normal" (ie. not affected by the mouse).
+      * @param {string} hovered #RGB color, used when the object is being hovered over by the mouse (if interactive).
+      * @param {string} pressed #RGB color, used when the object is beingp ressed on my the mouse (if interactive).
+    */
     "setLabelOf": function (name, text, offset, color, hovered, pressed) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`${name} does not exist.`);
@@ -584,13 +504,13 @@ const conductor = (function () {
       }
     },
     /** 
-   * Set the position of game object, in Game Coordinates.
-   * @param {string} name The name fof the GameObject
-   * @param {Number} x the x coordinate.
-   * @param {Number} y the y coordinate.
-   * @param {bool} fixes (optional) if true, the {x,y} position is fixed on the screen (ie. it is not in Game 
-   * Coordinates and will not be affected by the camera or zooming.  If false, the position is in Game Coordinates.
-   * Used for GUI elements like buttons.
+      * Set the position of game object, in Game Coordinates.
+      * @param {string} name The name fof the GameObject
+      * @param {Number} x the x coordinate.
+      * @param {Number} y the y coordinate.
+      * @param {bool} fixes (optional) if true, the {x,y} position is fixed on the screen (ie. it is not in Game 
+      * Coordinates and will not be affected by the camera or zooming.  If false, the position is in Game Coordinates.
+      * Used for GUI elements like buttons.
    */
     "setPositionOf": function (name, x, y, fixed) {
       if (!Object.hasOwn(objects, name)) {
@@ -604,9 +524,9 @@ const conductor = (function () {
       }
     },
     /**
-     * Sets the orientation of a game object, in radians.
-     * @param {number} orientation the orientation/direction, in radians.
-     */
+       * Sets the orientation of a game object, in radians.
+       * @param {number} orientation the orientation/direction, in radians.
+    */
     "setOrientationOf": function (name, orientation) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`cannot set position: ${name} does not exist.`);
@@ -615,17 +535,23 @@ const conductor = (function () {
       }
     },
     /**
-     * Check for existence of a GameObject
-     * @param {string} name - the name of the unique name of the GameObject.
-     * @returns {bool} true if GameObject by that name exists, otherwise
-     * false.
-     */
+      * Check for existence of a GameObject
+      * @param {string} name - the name of the unique name of the GameObject.
+      * @returns {bool} true if GameObject by that name exists, otherwise
+      * false.
+    */
     "has": function (name) {
       if (!Object.hasOwn(objects, name)) {
         throw Error(`${name} does not exist.`);
       }
       return Object.hasOwn(objects, name);
     },
+    /**
+      * Attaches the object to a "radioGroup" - when it is toggled, all the other objects in the same radio group 
+      * are untoggled.  If the radio group does not exist, it will be created.
+      * @param {string} objectName the game object to attach to the group.
+      * @param  {string} the name of the "radioGroup" that this button should become a member of.
+    */
     "registerWithRadioGroup": function (objectName, groupName) {
       if (!Object.hasOwn(objects, objectName)) {
         throw new Error(`${objectName} does not exist.`);
@@ -637,6 +563,13 @@ const conductor = (function () {
         objects[objectName].setRadioGroup(groupName);
       }
     },
+    /**
+      * Defines the action to be taken if this object is clicked on.
+      * @param {string} objectName the object that should call the function when  clicked.
+      * @param {function} fn the function that shouldbe called when the object is clicked.
+      * @param {object} params (Optional) An object to send the function. Allows for function to be used on multiple
+      * game objects.
+    */
     "setClickFunctionOf": function (objectName, fn, params) {
       if (!Object.hasOwn(objects, objectName)) {
         throw new Error(`${objectName} does not exist.`);
@@ -644,6 +577,10 @@ const conductor = (function () {
         objects[objectName].setClickFunction(fn, params);
       }
     },
+    /**
+      * Calling this function will tell the game object to act as a toggle switch, when clicked.
+      * @param {string} objectName 
+    */
     "setAsToggle": function (objectName) {
       if (!Object.hasOwn(objects, objectName)) {
         throw new Error(`${objectName} does not exist.`);
@@ -651,21 +588,20 @@ const conductor = (function () {
         objects[objectName].setToggleable(true);
       }
     },
+    
     /*
-
 
 
             |---------------------  CREATE A GAME OBJECT ---------------------|
 
 
-
-     */
+    */
 
     /**
-     * Creates a game object
-     * @param {string} objectName - what you want to call it. Must be unique.
-     */
-    "create": function (objectName) {
+      * Creates a game object
+      * @param {string} objectName - what you want to call it. Must be unique.
+    */
+    "create" : function (objectName) {
       if (Object.hasOwn(objects, objectName)) {
         throw Error(`${objectName} already exists.`);
       } else {
@@ -694,63 +630,92 @@ const conductor = (function () {
           let clickFn = null;
           let clickParam = null;
           return {
+            /**
+              * 
+            */
             "addPart": function (partName, sprites, offset, initalOrientation) {
               if (Object.hasOwn(parts, partName)) {
                 console.log(`${name} already contains part '${partName}'`);
               }
             },
+            /**
+              * 
+            */
             "getBounds": function () {
               return bounds;
             },
             /** this is set during the draw operation, it change based on how much space
-             * the object is taking up on the screen.
-             * @param {number} x0 the left most screen coordinate the object's sprite(s) touched.
-             * @param {number} y0 the upper most screen coordinate the object's sprite(s) touched.
-             * @param {number} x1 the right most screen coordinate the object's sprite(s) touched.
-             * @param {number} y1 the lower most screen coordinate the object's sprite(s) touched.
-             */
+              * the object is taking up on the screen.
+              * @param {number} x0 the left most screen coordinate the object's sprite(s) touched.
+              * @param {number} y0 the upper most screen coordinate the object's sprite(s) touched.
+              * @param {number} x1 the right most screen coordinate the object's sprite(s) touched.
+              * @param {number} y1 the lower most screen coordinate the object's sprite(s) touched.
+            */
             "setBounds": function (x0, y0, x1, y1) {
               bounds = { "x0": x0, "y0": y0, "x1": x1, "y1": y1 };
             },
             /** Gets the sprites used to draw this Game Object. A sprite {color,
-             *  coords} is an array of polar coordinates {r,a} (radius and 
-             * azimuth), and a color.                         
-             * @returns {[Sprite]} An array of sprites.
-             */
+              * coords} is an array of polar coordinates {r,a} (radius and 
+              * azimuth), and a color.                         
+              * @returns {[Sprite]} An array of sprites.
+            */
             "getSprites": function () {
               return sprites;
             },
             /**
-             * Adds a sprite to this Game Object. A sprite {color,
-             * coords} is an array of polar coordinates {r,a} (radius and 
-             * azimuth), a color, fill (optional).                         
-             */
+              * Adds a sprite to the set of sprites used to draw the Game Object. A sprite {color,
+              * coords} is an array of polar coordinates {r,a} (radius and 
+              * azimuth), a color, fill (optional).
+              * @param {Sprite} sprite the sprite to be added to the                          
+            */
             "addSprite": function (sprite) {
               sprites.push(sprite);
             },
             /**
-             * Adds a sprite to this Game Object used when the object is hovered over with the
-             * muouse. A sprite {color, coords} is an array of polar coordinates {r,a}
-             * (radius and azimuth), a color, fill (optional).                         
-             */
+              * Adds a sprite to this Game Object used when the object is hovered over with the
+              * muouse. A sprite {color, coords} is an array of polar coordinates {r,a}
+              * (radius and azimuth), a color, fill (optional).        
+            */
             "addHoverSprite": function (sprite) {
               hoveredSprites.push(sprite);
             },
+            /**
+              * This adds an addional sprite the set of sprites to be used when (if) the mouse presses on the game object.
+              * @param {Sprite} sprite the sprite   
+            */
             "addPressedSprite": function (sprite) {
               pressedSprites.push(sprite);
             },
+            /**
+              *  Gets the array of sprites used to draw this game object when the mouse hovers over it (if its
+              *  interactive)
+              *@returns An array of sprites. 
+            */
             "getHoveredSprites": function () {
               return hoveredSprites;
             },
+            /**
+              * Gets the array of sprite sued to draw this game object when the mouse hovers over it (if its 
+              * interactive)
+              * @returns An array of sprites. 
+            */
             "getPressedSprites": function () {
               return pressedSprites;
             },
             /**
-             * Adds a text label to  be drawn with the sprite.
-             * @param {string} text the label to attach to the sprite.
-             * @param {Point} offset the position (from the center of the sprite) to place the label.
-             */
+              * Adds a text label to  be drawn with the sprite.
+              * @param {string} text the label to attach to the sprite.
+              * @param {Point} offset the position (from the center of the sprite) to place the label.
+              * @param {string} color the "#RGB" color to draw the label.
+              * @param {string} hoveredColor the "#RGB" color to draw the label if the mouse is hovering over it (if its
+              * interactive).
+              * @param {string} pressedColor the "RGB" color to draw the label if the mouse is pressing on it (if its
+              * interactive).
+            */
             "setLabel": function (text, offset, color, hoveredColor, pressedColor) {
+              if (!text||!offset||!color){
+                throw new Error (`cannot set label for ${name} missing parameter.`);
+              }
               label = {
                 "text": text,
                 "offset": offset,
@@ -846,34 +811,82 @@ const conductor = (function () {
                 throw new Error(`Interactive can only be true or false. ${interacts} is invalid`);
               }
             },
+            /**
+              * Gets the parameter that should be passed to the function that is called when this game object is
+              * clicked by the mouse (it it is interactive).
+              * @returns An object passed as a parameter to this object's click event.  
+            */ 
             "getClickParam": function () {
               return clickParam;
             },
+            /**
+              * Sets the function that is called when this game object is clicked by the mouse (it it is interactive).
+              * @returns An object passed as a parameter to this object's click event.  
+            */
             "setClickFn": function (fn, clickPram) {
               clickFn = fn;
               clickParam = clickPram;
             },
+            /**
+              * Gets the function that is called when this game object is clicked by the mouse (it it is interactive).
+              * @returns the onclick function for this game object.
+            */
             "getClickFn": function (fn) {
               return clickFn;
             },
+            /**
+             * Used to determine if this game object should act as a toggle when it is clicked on by the mouse (if it 
+             * is interactive).
+             * @returns true if it acts as a toggle, false if it acts like a normal button. 
+            */
             "isToggle": function () {
               return isToggle;
             },
+            /**
+             * Gets the wether or not the game object has been "toggled" by a mouse click.
+             * @returns true if it is in the "on/active" state, false otherwise.
+             */
             "isToggled": function () {
               return isToggled;
             },
+            /**
+             * Sets the behaviour of the game object when pressed. If toggleable, it remains "on" after being pressed,
+             * otherwise it behaves like a normal button and is goes back to normal after being clicked.
+             * @returns true of it acts like a toggle switch, false if it acts like a normal button.
+             */
             "setToggleable": function () {
               isToggle = true;
             },
+            /** sets the state of the button.  If true it will be drawn as "pressed" even after being released.
+             * @param {bool} state true if it acts like a toggle button, false if it acts like a normal button.
+            */
             "setToggled": function (state) {
               isToggled = state;
             },
+            /** Gets wether or not this game object belongs to a group of other objects that are mutually exclusive: If 
+              * Meaning: If one of them is pressed, the others cannot be (and if one was it isn't anymore if this one
+              * is pressed.
+              * @returns true if is part of a mutally exclusive group, false if it is independant.
+            */
             "inRadioGroup": function () {
               return inRadioGroup;
             },
+            /** Gets the name of the group of mutually exclusive objects to which this object belongs. 
+             * @returns The name of the group.
+            */
             "getRadioGroup": function () {
-              return radioGroupName;
+              if (!inRadioGroup){
+                throw new Error (`{name} is not part of a Radio Group.`);
+              }else{
+                return radioGroupName;
+              }
             },
+            /** If this the selection (clicking) of this game object should be mutually exclusive with other objects,
+              *It must be assigned to a "Radio Group" which contains the other game objects that cannot be seleected
+              *if and when this one is selected.
+              @param {string} groupName the name of the group of mutually exclusive objects to which this object
+               belongs.
+            */
             "setRadioGroup": function (groupName) {
               radioGroupName = groupName;
               inRadioGroup = true;

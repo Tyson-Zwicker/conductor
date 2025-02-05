@@ -52,3 +52,9 @@ TASKS:
   * add a function that will add a user-defined function to be called when the canvas is clicked, but no game object was
     the recipient of the click (the mouse clicked nothing)
   
+
+  Parts:
+
+  - Make the setter use an object not an array..
+  - Add getters
+  - Add draw method.

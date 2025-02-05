@@ -245,6 +245,7 @@ const conductor = (function () {
           ctx.fillStyle = labelColor;
           ctx.fillText(label.text, labelX, labelY);
         }
+        
       } else {
         object.setOnScreen(false);
       }
@@ -448,6 +449,20 @@ const conductor = (function () {
      */
     "getMouse": function () {
       return { mouse };
+    },
+    /** Adds a part (a sprite attached to the game object that can be rotateed independantly
+     * @param  {string} name the game object that should own this part.
+     * @param  {string} partname the name of the part.
+     * @param {Array.Sprite} sprites the sprites that the part draws.
+     * @param {PolarCoodinate} offset the location of the part relative to the game object's center.
+     * @param {number} the initial orientation of the part in radians.
+     */
+    "addPartTo": function (name, partname, sprites, offset, orientation){
+      if (Object.hasOwn (objects, name)){
+        objects[name].addPart (partname, sprites, offset, orientation);
+      }else {
+        throw new Error (`${name} does not exist.`);
+      }
     },
     /** 
      * Adds a sprite to this object
@@ -672,11 +687,23 @@ const conductor = (function () {
             */
             "addPart": function (partName, sprites, offset, initalOrientation) {
               if (Object.hasOwn(parts, partName)) {
-               throw new Error (`${name} already contains part '${partName}'`);
+                throw new Error (`${name} already contains part '${partName}'`);
               }
+              if (sprites.length<1){
+                throw new Error ('parts must have at least one sprite.');
+              }
+              let part = {
+                "name":partName,
+                "sprites": sprites,
+                "orientation": (initalOrientation)?initalOrientation:0,
+                "offset": offset
+              }
+              this.parts.push (part);
             },
             /**
-              * 
+              * Gets the rectangle that bounds the objects sprites, as they were
+              * last drawn (due to zoom, camera position, etc.)
+              * @returns the bounding rectangle {x0,y0,x1,y1}
             */
             "getBounds": function () {
               return bounds;

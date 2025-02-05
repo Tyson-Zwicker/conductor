@@ -55,6 +55,75 @@ TASKS:
 
   Parts:
 
+{name, sprites[](polar), orientation, offset(polar)}
+  
   - Make the setter use an object not an array..
   - Add getters
   - Add draw method.
+
+*** You need  to a "part factory" (see: addSpriteTo) that
+will convert the cartesians to polars, and it calls objects.addPart
+with the polar coordinates already converted.. ***
+
+ object.addPartSprite(partname, polarizedSprite);
+ object.addPart(partname, offset, orientation);
+
+  NEW CODE FROM CONDUCTOR:
+           "addPart": function (partName, sprites, offset, initalOrientation) {
+              if (Object.hasOwn(parts, partName)) {
+                throw new Error (`${name} already contains part '${partName}'`);
+              }
+              if (sprites.length<1){
+                throw new Error ('parts must have at least one sprite.');
+              }
+              let part = {
+                "name":partName,
+                "sprites": sprites,
+                "orientation": (initalOrientation)?initalOrientation:0,
+                "offset": offset
+              }
+              this.parts[partName]=part;
+            },
+            /**
+             *  Gets the parts for this object. The parts are stored as an object
+             * where the property of the part the part name.
+             * @returns An object containing all the parts.
+            */
+            "getParts":function (){
+              return parts;
+            },
+            /**
+             * Get an individual part of the object.
+             * @param {string} partName the name of the part to be returned
+             * @returns the part {name, sprites, orientation, offset}
+             */
+            "getPart": function(partName){
+              if (Object.hasOwn (parts, partName)){
+                return parts[partName];
+              }else{
+                throw new Error (`${name} does not have part ${partName}.`);
+              }
+            },
+
+  OLD CODE FROM "ENGINE":
+
+  const Part = function (name,sprite, offset, orientation) {
+    this.name = name;
+    this.sprite = sprite;
+    this.orientation = (orientation) ? orientation : 0;
+    this.owner = undefined;
+    this.offset = (offset) ? new Point(offset.x, offset.y).toVector() : new Vector(0, 0);
+}
+//offset parameter is the "owners" screen coordinates.
+Part.prototype.draw = function (ownerLocation) {
+    let x = ownerLocation.x;
+    let partLocation = {
+        x: ownerLocation.x + cos(this.offset.angle+this.owner.angle) * this.offset.length * _zoom,
+        y: ownerLocation.y + sin(this.offset.angle+this.owner.angle) * this.offset.length * _zoom
+    };
+    let orientation = this.orientation + this.owner.angle;
+    this.sprite.draw(orientation, partLocation);
+}
+Part.prototype.clone = function (){
+    return new Part (this.name, this.sprite, this.offset.toPoint(), this.orientation);
+} 

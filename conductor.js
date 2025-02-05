@@ -1,26 +1,4 @@
-/*
-This runs immediately, establishes event handlers for keyboard and mouse, and
-creates the canvas.
-
-Finally, it returns an object called the "conductor".  All the "things" in your
-program that should interact with the user, via mouse or keyboard or be drawn on
-the canvas must be registered with the conductor so they can automatically be
-made aware of events that effect them, and be animated in the main loop.
-
-Calling the loop() function will start animating the program, and interacting
-with the user.  runOnce() to run the main loop only once, and stopLoop() to stop 
-the loop from continuing.
-
-*/
-
 const conductor = (function () {
-  /*
-  
-  
-   -------------------------PRIVATE-----------------------------------------
-
-
-  */
   var objects = {};
   var canvas = null;
   let ctx = null;
@@ -144,6 +122,147 @@ const conductor = (function () {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
+ 
+  
+  
+  function drawObject_buildSpriteBounds(spriteBounds, spritePoint) {
+    let adjustedSpriteBounds = spriteBounds;
+    if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
+      adjustedSpriteBounds.x0 = spritePoint.x;
+    }
+    if (spriteBounds.x1 === undefined || spriteBounds.x1 < spritePoint.x) {
+      adjustedSpriteBounds.x1 = spritePoint.x;
+    }
+    if (spriteBounds.y0 === undefined || spriteBounds.y0 > spritePoint.y) {
+      adjustedSpriteBounds.y0 = spritePoint.y;
+    }
+    if (spriteBounds.y1 === undefined || spriteBounds.y1 < spritePoint.y) {
+      adjustedSpriteBounds.y1 = spritePoint.y;
+    }
+    return adjustedSpriteBounds;
+  }
+
+
+  function drawObject_part(object, objectCenterPoint, part) {
+    let partCenterPoint = {
+      "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getOrientation()) * this.offset.r * camera.zoom,
+      "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getOrientation()) * this.offset.r * camera.zoom
+    }
+    object.getPart(partName).sprites.forEach(sprite => {
+      let firstPoint = true;
+      ctx.beginPath();
+      if (sprite.fill) {
+        ctx.fillStyle = sprite.color;
+      } else {
+        ctx.strokeStyle = sprite.color;
+        ctx.lineWidth = 1;
+      }
+      sprite.coords.forEach(polarCoord => {
+        let spritePoint = {
+          "x": partCenterPoint + Math.cos(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom,
+          "y": partCenterPoint + Math.sin(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom
+        }
+        if (firstPoint) {
+          ctx.moveTo(spritePoint.x, spritePoint.y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(spritePoint.x, spritePoint.y);
+        }
+      });
+      ctx.closePath();
+      if (sprite.fill) {
+        ctx.fill();
+      } else {
+        ctx.stroke();
+      }
+    });
+  }
+  function drawObject_label(object, objectCenterPoint, label) {
+    let labelColor = undefined; //depends on game objects interaction with the mouse..
+    if (object.isToggled() || object === pressedObject) {
+      labelColor = label.pressedColor;
+      if (labelColor === undefined) throw new Error(`${objectName} does not specify a label for pressed state`);
+    } else if (object === hoveredObject) {
+      labelColor = label.hoveredColor;
+      if (labelColor === undefined) throw new Error(`${objectName} does not specify a label for hovered state`);
+    } else {
+      labelColor = label.color;
+    }
+    let labelX = objectCenterPoint.x + label.offset.x;
+    let labelY = objectCenterPoint.y + label.offset.y;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillStyle = labelColor;
+    ctx.fillText(label.text, labelX, labelY);
+  }
+  function drawObject_sprites(object, spriteSet, objectPosition, objectCenterPoint) {
+    //spriteBounds will capture the furthest point a sprite is drawn from the game object's center, 
+    //which will be used to make the box used for mouse interaction as accurate as possible.
+    let spriteBounds = { x0: undefined, y0: undefined, x1: undefined, y1: undefined };
+    spriteSet.forEach(sprite => {
+      let firstPoint = true;
+      if (sprite.fill) {
+        ctx.fillStyle = sprite.color;
+      } else {
+        ctx.strokeStyle = sprite.color;
+        ctx.lineWidth = 1;
+      }
+      ctx.beginPath();
+      sprite.coords.forEach(polarCoordinate => {
+        let spritePoint = { "x": undefined, "y": undefined };
+        if (!objectPosition.isFixed) {
+          let rotatedScaledPolar = {
+            "a": polarCoordinate.a + object.getOrientation(),
+            "r": polarCoordinate.r * camera.zoom
+          };
+          spritePoint = fromPolar(rotatedScaledPolar);
+          spritePoint = translate(spritePoint, objectCenterPoint);
+        } else {
+          spritePoint = fromPolar(polarCoordinate);
+          spritePoint = translate(spritePoint, objectCenterPoint);
+        }
+        //Check to see if this point extends, or defines, one of the bounds of the game object.
+        spriteBounds = drawObject_buildSpriteBounds(spriteBounds, spritePoint)
+        //First point must be moved to, the rest are lined to.  The final point doesn't need to return
+        //to the starting point, closing the path does that automatically.
+        if (firstPoint) {
+          ctx.moveTo(spritePoint.x, spritePoint.y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(spritePoint.x, spritePoint.y);
+        }
+      });//next sprite coordinate...          
+      ctx.closePath();
+      if (sprite.fill) {
+        ctx.fill();
+      } else {
+        ctx.stroke();
+      }
+    });//next sprite..
+    return spriteBounds;
+  }
+  function drawObject (object, objectPosition, objectCenterPoint){
+    //Sprite set depends on the objects state of interaction with the mouse.
+    let spriteSet = undefined;
+    if (object.isToggled() || object === pressedObject) {
+      spriteSet = object.getPressedSprites();
+    } else if (object === hoveredObject) {
+      spriteSet = object.getHoveredSprites();
+    } else {
+      spriteSet = object.getSprites();
+    }
+    let spriteBounds = drawObject_sprites(object, spriteSet, objectPosition, objectCenterPoint);
+    object.setBounds(spriteBounds); //All sprites are drawn, safe to apply bounds..
+    let label = object.getLabel(); //Now draw a label if one is defined.
+    if (label) {
+      drawObject_label(object, objectCenterPoint, label);
+    }
+    let parts = object.getParts();
+    Object.getOwnPropertyNames(parts).forEach(partName => {
+      let part = parts[partName];
+      drawObject_part(object, objectCenterPoint, part);
+    });
+}
   /**
    * Draws all of the game objects on the canvas which fit.  Offsets the
    * objects "Game Coordinates" {x,y} by the center of the screen, such that
@@ -162,106 +281,12 @@ const conductor = (function () {
       }
       if (isBounded(objectCenterPoint, screenBounds()) && object.getSprites().length > 0) {
         object.setOnScreen(true);
-        //spriteBounds will capture the furthest point a sprite is drawn from the game object's center, 
-        //which will be used to make the box used for mouse interaction as accurate as possible.
-        let spriteBounds = { x0: undefined, y0: undefined, x1: undefined, y1: undefined };
-        //Sprite set depends on the objects state of interaction with the mouse.
-        let spriteSet = undefined;
-        if (object.isToggled() || object === pressedObject) {
-          spriteSet = object.getPressedSprites();
-        } else if (object === hoveredObject) {
-          spriteSet = object.getHoveredSprites();
-        } else {
-          spriteSet = object.getSprites();
-        }
-        spriteSet.forEach(sprite => {
-          let firstPoint = true;
-          if (sprite.fill) {
-            ctx.fillStyle = sprite.color;
-          } else {
-            ctx.strokeStyle = sprite.color;
-            ctx.lineWidth = 1;
-          }
-          ctx.beginPath();
-          sprite.coords.forEach(polarCoordinate => {
-            let spritePoint = { "x": undefined, "y": undefined };
-            if (!objectPosition.isFixed) {
-              let rotatedScaledPolar = {
-                "a": polarCoordinate.a + object.getOrientation(),
-                "r": polarCoordinate.r * camera.zoom
-              };
-              spritePoint = fromPolar(rotatedScaledPolar);
-              spritePoint = translate(spritePoint, objectCenterPoint);
-            } else {
-              spritePoint = fromPolar(polarCoordinate);
-              spritePoint = translate(spritePoint, objectCenterPoint);
-            }
-            //Check to see if this point extends, or defines, one of the bounds of the game object.
-            if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
-              spriteBounds.x0 = spritePoint.x;
-            }
-            if (spriteBounds.x1 === undefined || spriteBounds.x1 < spritePoint.x) {
-              spriteBounds.x1 = spritePoint.x;
-            }
-            if (spriteBounds.y0 === undefined || spriteBounds.y0 > spritePoint.y) {
-              spriteBounds.y0 = spritePoint.y;
-            }
-            if (spriteBounds.y1 === undefined || spriteBounds.y1 < spritePoint.y) {
-              spriteBounds.y1 = spritePoint.y;
-            }
-            //First point must be moved to, the rest are lined to.  The final point doesn't need to return
-            //to the starting point, closing the path does that automatically.
-            if (firstPoint) {
-              ctx.moveTo(spritePoint.x, spritePoint.y);
-              firstPoint = false;
-            } else {
-              ctx.lineTo(spritePoint.x, spritePoint.y);
-            }
-          });//next sprite coordinate...          
-          ctx.closePath();
-          if (sprite.fill) ctx.fill(); else ctx.stroke();
-        });//next sprite..
-        object.setBounds(spriteBounds); //All sprites are drawn, safe to apply bounds..
-        let label = object.getLabel(); //Now draw a label if one is defined.
-        if (label) {
-          let labelColor = undefined; //depends on game objects interaction with the mouse..
-          if (object.isToggled() || object === pressedObject) {
-            labelColor = label.pressedColor;
-            if (labelColor === undefined) throw new Error(`${objectName} does not specify a label for pressed state`);
-          } else if (object === hoveredObject) {
-            labelColor = label.hoveredColor;
-            if (labelColor === undefined) throw new Error(`${objectName} does not specify a label for hovered state`);
-          } else {
-            labelColor = label.color;
-          }
-          let labelX = objectCenterPoint.x + label.offset.x;
-          let labelY = objectCenterPoint.y + label.offset.y;
-          ctx.textBaseline = "middle";
-          ctx.textAlign = "center";
-          ctx.fillStyle = labelColor;
-          ctx.fillText(label.text, labelX, labelY);
-        }//Label
-        let parts = object.getParts();
-        Object.GetOwnPropertyNames(parts).forEach(partName => {
-          let part = parts[partName];
-          let partCenterPoint = {
-            "x": objectCenterPoint.x +
-              Math.cos(part.offset.a + object.getOrientation()) *
-              this.offset.r * camera.zoom,
-            "y": objectCenterPoint.y +
-              Math.sin(part.offset.a + object.getOrientation()) *
-              ths.offset.r * camera.zoom
-          }
-          //A sprite is [polar], color, fill
-          object.getPart(partName).sprites.forEach (sprite=>{
-            //TODO: YOU ARE HERE!!
-          });
-        });//next part
-      }// if bounded by screen
+        drawObject (object, objectPosition,objectCenterPoint);
+      }
       else {
         object.setOnScreen(false);
       }
-    });//next object..
+    });
   }
   /**
    * Checks all the game objects that are "interactive" to see of the mouse if hovering over them,
@@ -470,19 +495,36 @@ const conductor = (function () {
      * @param {number} the initial orientation of the part in radians.
      */
     "addPartTo": function (name, partname, offset, orientation) {
-      
+
       if (Object.hasOwn(objects, name)) {
-        let object =objects[name];
+        let object = objects[name];
         object.addPart(partname, offset, orientation);
       } else {
         throw new Error(`${name} does not exist.`);
       }
     },
-    //TODO: comment!
-    addSpriteToPart (name, partname,sprite){
+    /** Adds a sprite to a part.
+    * @param {string} name - the game object's name
+    * @param {string} partName - the name of the part
+    * @param {Array.Point} points - cartesian points that define the shape of the sprite
+    * @param {string} color - the "#RGB" color of the sprite
+    * @param {bool} fill - true if sprite is filled, false if not.
+    */
+    addSpriteToPart(name, partname, points, color, fill) {
       if (Object.hasOwn(objects, name)) {
-        let object =objects[name];
-        //TODO: cartesian to polar conversion..
+        let object = objects[name];
+        if (sprite.coords.length % 2 !== 0) {
+          throw new Error('sprites must be pairs of numbers {x,y}');
+        }
+        let polarSpritePoints = [];
+        for (let i = 0; i < points.length; i++) {
+          polarSpritePoints.push(toPolar(points[i], points[i + 1]));
+        }
+        let polarizedSprite = {
+          "color": color,
+          "fill": fill,
+          "coords": polarSpritePoints
+        }
         object.addPartSprite(partname, polarizedSprite);
       } else {
         throw new Error(`${name} does not exist.`);
@@ -712,7 +754,7 @@ const conductor = (function () {
             "addPart": function (partName, offset, initalOrientation) {
               if (Object.hasOwn(parts, partName)) {
                 throw new Error(`${name} already contains part '${partName}'`);
-              }              
+              }
               let part = {
                 "name": partName,
                 "sprites": [],
@@ -721,12 +763,12 @@ const conductor = (function () {
               }
               this.parts[partName] = part;
             },
-            "addPartSprite": function (partName, sprite){
-              if (parts.hasOwn (partName)){
+            "addPartSprite": function (partName, sprite) {
+              if (parts.hasOwn(partName)) {
                 let part = parts[partName];
-                part.sprites.push (sprite);
-              }else {
-                throw new Error (`${name} does not contain part ${partName}`);
+                part.sprites.push(sprite);
+              } else {
+                throw new Error(`${name} does not contain part ${partName}`);
               }
             },
             /**

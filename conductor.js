@@ -199,19 +199,15 @@ const conductor = (function () {
             //Check to see if this point extends, or defines, one of the bounds of the game object.
             if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
               spriteBounds.x0 = spritePoint.x;
-              
             }
             if (spriteBounds.x1 === undefined || spriteBounds.x1 < spritePoint.x) {
               spriteBounds.x1 = spritePoint.x;
-              
             }
-            if (spriteBounds.y0 === undefined || spriteBounds.y0 > spritePoint.y){
-               spriteBounds.y0 = spritePoint.y;
-              
+            if (spriteBounds.y0 === undefined || spriteBounds.y0 > spritePoint.y) {
+              spriteBounds.y0 = spritePoint.y;
             }
             if (spriteBounds.y1 === undefined || spriteBounds.y1 < spritePoint.y) {
               spriteBounds.y1 = spritePoint.y;
-              
             }
             //First point must be moved to, the rest are lined to.  The final point doesn't need to return
             //to the starting point, closing the path does that automatically.
@@ -244,9 +240,25 @@ const conductor = (function () {
           ctx.textAlign = "center";
           ctx.fillStyle = labelColor;
           ctx.fillText(label.text, labelX, labelY);
-        }
-        
-      } else {
+        }//Label
+        let parts = object.getParts();
+        Object.GetOwnPropertyNames(parts).forEach(partName => {
+          let part = parts[partName];
+          let partCenterPoint = {
+            "x": objectCenterPoint.x +
+              Math.cos(part.offset.a + object.getOrientation()) *
+              this.offset.r * camera.zoom,
+            "y": objectCenterPoint.y +
+              Math.sin(part.offset.a + object.getOrientation()) *
+              ths.offset.r * camera.zoom
+          }
+          //A sprite is [polar], color, fill
+          object.getPart(partName).sprites.forEach (sprite=>{
+            //TODO: YOU ARE HERE!!
+          });
+        });//next part
+      }// if bounded by screen
+      else {
         object.setOnScreen(false);
       }
     });//next object..
@@ -260,16 +272,16 @@ const conductor = (function () {
   function checkMouseInteractions() {
     let debug = true;
     let objectInteractedWith = false;
-    Object.getOwnPropertyNames(objects).forEach(objectName => {      
+    Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
-      if (object.isInteractive()) {        
+      if (object.isInteractive()) {
         if (object.isOnScreen()) {
           if (isBounded(mouse, object.getBounds())) {
             //The mouse is inside of the object's bounds.            
             objectInteractedWith = true; //counts because it hovering..
             if (mouse.button === false && hoveredObject !== object) {
               //a _newly_ hovered object
-              
+
               hoveredObject = object;
               pressedObject = null;
             }
@@ -298,16 +310,16 @@ const conductor = (function () {
                 clickFn(clickParam);
               }
               pressedObject = null;
-              objectInteractedWith = true;              
+              objectInteractedWith = true;
             }
           }
         }
       }
     });
-    if (objectInteractedWith===false){
-  //    console.log (`nothing interacted with.count = ${interactionCount}`);
-      hoveredObject =null;
-      pressedObject =null;
+    if (objectInteractedWith === false) {
+      //    console.log (`nothing interacted with.count = ${interactionCount}`);
+      hoveredObject = null;
+      pressedObject = null;
     }
   }
   /**
@@ -323,11 +335,11 @@ const conductor = (function () {
     if (running) setTimeout(mainLoop, frameRate);
   }
   /*
-  
-  
+   
+   
       -----------------------------PUBLIC----------------------------------------
-
-
+  
+  
   */
   return {
     /**
@@ -354,7 +366,7 @@ const conductor = (function () {
             let change = -Math.sign(e.deltaY) * camera.zoom / 10;
             let oldZoom = camera.zoom;
             camera.zoom = camera.zoom + change;
-           }
+          }
         }
         canvas.onmousemove = function (e) {
           mouse.x = e.clientX;
@@ -457,11 +469,23 @@ const conductor = (function () {
      * @param {PolarCoodinate} offset the location of the part relative to the game object's center.
      * @param {number} the initial orientation of the part in radians.
      */
-    "addPartTo": function (name, partname, sprites, offset, orientation){
-      if (Object.hasOwn (objects, name)){
-        objects[name].addPart (partname, sprites, offset, orientation);
-      }else {
-        throw new Error (`${name} does not exist.`);
+    "addPartTo": function (name, partname, offset, orientation) {
+      
+      if (Object.hasOwn(objects, name)) {
+        let object =objects[name];
+        object.addPart(partname, offset, orientation);
+      } else {
+        throw new Error(`${name} does not exist.`);
+      }
+    },
+    //TODO: comment!
+    addSpriteToPart (name, partname,sprite){
+      if (Object.hasOwn(objects, name)) {
+        let object =objects[name];
+        //TODO: cartesian to polar conversion..
+        object.addPartSprite(partname, polarizedSprite);
+      } else {
+        throw new Error(`${name} does not exist.`);
       }
     },
     /** 
@@ -642,11 +666,11 @@ const conductor = (function () {
     },
 
     /*
-
-
+  
+  
             |---------------------  CREATE A GAME OBJECT ---------------------|
-
-
+  
+  
     */
 
     /**
@@ -685,20 +709,45 @@ const conductor = (function () {
             /**
               * 
             */
-            "addPart": function (partName, sprites, offset, initalOrientation) {
+            "addPart": function (partName, offset, initalOrientation) {
               if (Object.hasOwn(parts, partName)) {
-                throw new Error (`${name} already contains part '${partName}'`);
-              }
-              if (sprites.length<1){
-                throw new Error ('parts must have at least one sprite.');
-              }
+                throw new Error(`${name} already contains part '${partName}'`);
+              }              
               let part = {
-                "name":partName,
-                "sprites": sprites,
-                "orientation": (initalOrientation)?initalOrientation:0,
+                "name": partName,
+                "sprites": [],
+                "orientation": (initalOrientation) ? initalOrientation : 0,
                 "offset": offset
               }
-              this.parts.push (part);
+              this.parts[partName] = part;
+            },
+            "addPartSprite": function (partName, sprite){
+              if (parts.hasOwn (partName)){
+                let part = parts[partName];
+                part.sprites.push (sprite);
+              }else {
+                throw new Error (`${name} does not contain part ${partName}`);
+              }
+            },
+            /**
+             *  Gets the parts for this object. The parts are stored as an object
+             * where the property of the part the part name.
+             * @returns An object containing all the parts.
+            */
+            "getParts": function () {
+              return parts;
+            },
+            /**
+             * Get an individual part of the object.
+             * @param {string} partName the name of the part to be returned
+             * @returns the part {name, sprites, orientation, offset}
+             */
+            "getPart": function (partName) {
+              if (Object.hasOwn(parts, partName)) {
+                return parts[partName];
+              } else {
+                throw new Error(`${name} does not have part ${partName}.`);
+              }
             },
             /**
               * Gets the rectangle that bounds the objects sprites, as they were
@@ -716,7 +765,7 @@ const conductor = (function () {
               * @param {number} y1 the lower most screen coordinate the object's sprite(s) touched.
             */
             "setBounds": function (spritebounds) {
-              bounds =spritebounds;              
+              bounds = spritebounds;
             },
             /** Gets the sprites used to draw this Game Object. A sprite {color,
               * coords} is an array of polar coordinates {r,a} (radius and 
@@ -727,10 +776,10 @@ const conductor = (function () {
               return sprites;
             },
             /**
-              * Adds a sprite to the set of sprites used to draw the Game Object. A sprite {color,
-              * coords} is an array of polar coordinates {r,a} (radius and 
+              * Adds a sprite to the set of sprites used to draw the Game Object. A sprite
+              * is an array of polar coordinates {r,a} (radius and 
               * azimuth), a color, fill (optional).
-              * @param {Sprite} sprite the sprite to be added to the                          
+              * @param {Sprite} sprite the sprite to be added to the game object.                        
             */
             "addSprite": function (sprite) {
               sprites.push(sprite);

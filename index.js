@@ -71,7 +71,7 @@ const setup = function () {
 
   //TODO: Make this a part of 'ship'.. for now just making sure it looks "turret-y".
   conductor.create('turret');
-  let turretSprite = [
+  let turretSpritePoints = [
     -7, -10,
     -1, -10,
     -1, -20,
@@ -84,7 +84,7 @@ const setup = function () {
   //function (name, partname, offset, orientation)
   conductor.addPartTo('ship','turret', {"x":0,"y":-30},0);
   //addSpriteToPart(name, partname, points, color, fill)
-  conductor.addSpriteToPart ('ship','turret',turretSprite,'#ff0', true);
+  conductor.addSpriteToPart ('ship','turret',turretSpritePoints,'#ff0', true);
 
-  conductor.startLoop(33);
+  conductor.runOnce();
 }

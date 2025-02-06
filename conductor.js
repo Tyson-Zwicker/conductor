@@ -149,6 +149,8 @@ const conductor = (function () {
       "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getOrientation()) * part.offset.r * camera.zoom,
       "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getOrientation()) * part.offset.r * camera.zoom
     }
+    console.log ('part center point:');
+    console.log (partCenterPoint);
     part.sprites.forEach(sprite => {
       let firstPoint = true;
       ctx.beginPath();
@@ -160,9 +162,12 @@ const conductor = (function () {
       }
       sprite.coords.forEach(polarCoord => {
         let spritePoint = {
-          "x": partCenterPoint + Math.cos(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom,
-          "y": partCenterPoint + Math.sin(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom
+          "x": partCenterPoint.x + Math.cos(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom,
+          "y": partCenterPoint.y + Math.sin(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom
         }
+        console.log ('spritePoint:');
+        console.log (spritePoint);
+        
         if (firstPoint) {
           ctx.moveTo(spritePoint.x, spritePoint.y);
           firstPoint = false;

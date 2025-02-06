@@ -46,6 +46,9 @@ const conductor = (function () {
   * @returns {PolarCoordinate} r,a - the radius and azimuth (angle)
   */
   function toPolar(x, y) {
+    if (isNaN(x) || isNaN(y)){
+      throw new Error (`Cannot convert (${x},${y}) to a polar coordinate.`);
+    }
     return {
       a: Math.atan2(y, x),
       r: Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2))
@@ -122,9 +125,9 @@ const conductor = (function () {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
- 
-  
-  
+  /*
+  ------------------------------- Draw Helper Functions -------------------------------
+  */
   function drawObject_buildSpriteBounds(spriteBounds, spritePoint) {
     let adjustedSpriteBounds = spriteBounds;
     if (spriteBounds.x0 === undefined || spriteBounds.x0 > spritePoint.x) {
@@ -141,14 +144,12 @@ const conductor = (function () {
     }
     return adjustedSpriteBounds;
   }
-
-
   function drawObject_part(object, objectCenterPoint, part) {
     let partCenterPoint = {
-      "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getOrientation()) * this.offset.r * camera.zoom,
-      "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getOrientation()) * this.offset.r * camera.zoom
+      "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getOrientation()) * part.offset.r * camera.zoom,
+      "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getOrientation()) * part.offset.r * camera.zoom
     }
-    object.getPart(partName).sprites.forEach(sprite => {
+    part.sprites.forEach(sprite => {
       let firstPoint = true;
       ctx.beginPath();
       if (sprite.fill) {
@@ -251,13 +252,15 @@ const conductor = (function () {
     } else {
       spriteSet = object.getSprites();
     }
+    //sprite bounds is the rectangle that encompasses object. It is created, as the sprites are drawn,
+    //by using the sprite point furthest from the object center.
     let spriteBounds = drawObject_sprites(object, spriteSet, objectPosition, objectCenterPoint);
     object.setBounds(spriteBounds); //All sprites are drawn, safe to apply bounds..
     let label = object.getLabel(); //Now draw a label if one is defined.
     if (label) {
       drawObject_label(object, objectCenterPoint, label);
     }
-    let parts = object.getParts();
+    let parts = object.getParts(); //Now draw the parts, if any are defined.
     Object.getOwnPropertyNames(parts).forEach(partName => {
       let part = parts[partName];
       drawObject_part(object, objectCenterPoint, part);
@@ -293,7 +296,6 @@ const conductor = (function () {
    * or if they have been clicked on.  If they have been clicked on, it will call that object's click
    * function, and pass it parameters associated with the object, if any have been defined.
    */
-
   function checkMouseInteractions() {
     let debug = true;
     let objectInteractedWith = false;
@@ -342,7 +344,6 @@ const conductor = (function () {
       }
     });
     if (objectInteractedWith === false) {
-      //    console.log (`nothing interacted with.count = ${interactionCount}`);
       hoveredObject = null;
       pressedObject = null;
     }
@@ -360,11 +361,7 @@ const conductor = (function () {
     if (running) setTimeout(mainLoop, frameRate);
   }
   /*
-   
-   
       -----------------------------PUBLIC----------------------------------------
-  
-  
   */
   return {
     /**
@@ -492,13 +489,15 @@ const conductor = (function () {
      * @param  {string} partname the name of the part.
      * @param {Array.Sprite} sprites the sprites that the part draws.
      * @param {PolarCoodinate} offset the location of the part relative to the game object's center.
-     * @param {number} the initial orientation of the part in radians.
+     * @param {number} orientation the initial orientation of the part in radians.
      */
     "addPartTo": function (name, partname, offset, orientation) {
-
+      console.log (offset);
       if (Object.hasOwn(objects, name)) {
         let object = objects[name];
-        object.addPart(partname, offset, orientation);
+        
+        let polarOffset = toPolar (offset.x, offset.y);
+        object.addPart(partname, polarOffset, orientation);
       } else {
         throw new Error(`${name} does not exist.`);
       }
@@ -507,24 +506,25 @@ const conductor = (function () {
     * @param {string} name - the game object's name
     * @param {string} partName - the name of the part
     * @param {Array.Point} points - cartesian points that define the shape of the sprite
-    * @param {string} color - the "#RGB" color of the sprite
+    * @param {string} color -the "#RGB" color of the sprite
     * @param {bool} fill - true if sprite is filled, false if not.
     */
-    addSpriteToPart(name, partname, points, color, fill) {
-      if (Object.hasOwn(objects, name)) {
+    "addSpriteToPart": function (name, partname, spritePoints, color, fill) {
+      if (Object.hasOwn(objects,name)) {
         let object = objects[name];
-        if (sprite.coords.length % 2 !== 0) {
+        if (spritePoints.length % 2 !== 0) {
           throw new Error('sprites must be pairs of numbers {x,y}');
         }
         let polarSpritePoints = [];
-        for (let i = 0; i < points.length; i++) {
-          polarSpritePoints.push(toPolar(points[i], points[i + 1]));
+        for (let i = 0; i < spritePoints.length; i=i+2) {
+          polarSpritePoints.push(toPolar(spritePoints[i], spritePoints[i + 1]));
         }
         let polarizedSprite = {
           "color": color,
           "fill": fill,
           "coords": polarSpritePoints
         }
+        
         object.addPartSprite(partname, polarizedSprite);
       } else {
         throw new Error(`${name} does not exist.`);
@@ -536,6 +536,7 @@ const conductor = (function () {
      * @param {[Numbers]} points A series of
      *  x,y  coordinates.
      * @param {String} color #RGB color.
+     * @param {bool} fill, fills the sprite with the specified color, if true.  If false, draws the outline only.
      */
     "addSpriteTo": function (name, points, color, fill) {
       if (!Object.hasOwn(objects, name)) {
@@ -706,15 +707,9 @@ const conductor = (function () {
         objects[objectName].setToggleable(true);
       }
     },
-
     /*
-  
-  
-            |---------------------  CREATE A GAME OBJECT ---------------------|
-  
-  
+              |---------------------  CREATE A GAME OBJECT ---------------------|
     */
-
     /**
       * Creates a game object
       * @param {string} objectName - what you want to call it. Must be unique.
@@ -736,6 +731,8 @@ const conductor = (function () {
           let gy = -1;
           let fx = -1;
           let fy = -1;
+          let xv = 0;
+          let yv = 0;
           let positionIsFixed = false;
           let orientation = 0;
           let onScreen = false;
@@ -749,22 +746,29 @@ const conductor = (function () {
           let clickParam = null;
           return {
             /**
-              * 
-            */
-            "addPart": function (partName, offset, initalOrientation) {
+              * Add a part to the game object. A part is a game object that is part of game object (that is, it moves
+              * with the game object, and reflects the rotation of the game object) but is capable of independantly
+              * rotating.  It has its own set of sprites. Parts are not <currently> interactive with the mouse.
+              * @param {string} partName The name of the part. This must be unique to the game object, though the name
+              * may occur in more than one game object.
+              * @param {Polar coord} offset The position of the part relative to the center of the game object.
+              * @param {number} initialOrientation (optional) The direction the part is initially facing. If omitted the
+              * part will be facing "forward" (0 radians).
+            */                      
+            "addPart": function (partName, offset, initialOrientation) {
               if (Object.hasOwn(parts, partName)) {
                 throw new Error(`${name} already contains part '${partName}'`);
-              }
+              }              
               let part = {
                 "name": partName,
                 "sprites": [],
-                "orientation": (initalOrientation) ? initalOrientation : 0,
+                "orientation": (initialOrientation) ? initialOrientation : 0,
                 "offset": offset
               }
-              this.parts[partName] = part;
+              parts[partName] = part;
             },
             "addPartSprite": function (partName, sprite) {
-              if (parts.hasOwn(partName)) {
+              if (Object.hasOwn(parts, partName)) {
                 let part = parts[partName];
                 part.sprites.push(sprite);
               } else {
@@ -772,7 +776,7 @@ const conductor = (function () {
               }
             },
             /**
-             *  Gets the parts for this object. The parts are stored as an object
+             * Gets the parts for this object. The parts are stored as an object
              * where the property of the part the part name.
              * @returns An object containing all the parts.
             */

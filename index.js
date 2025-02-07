@@ -85,6 +85,6 @@ const setup = function () {
   conductor.addPartTo('ship','turret', {"x":0,"y":-30},0);
   //addSpriteToPart(name, partname, points, color, fill)
   conductor.addSpriteToPart ('ship','turret',turretSpritePoints,'#ff0', true);
-
-  conductor.runOnce();
+  conductor.setVelocityByDirectionOf ('ship',5);//5 pixels per second hopefully...
+  conductor.startLoop(33);
 }

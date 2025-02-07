@@ -8,7 +8,7 @@ const conductor = (function () {
   var oldTime = new Date();
   var time = new Date();
   var zoomOnWheel = false;
-  var delta = 0;
+  var deltaTime = 0;
   /**
    * The camera view the Game World, its coordinates reflect the Game Coordinate that will be at the center
    * of the screen. It also handles zooming.  A zoom value of 1 is "normal" zoom.  Higher values
@@ -33,7 +33,7 @@ const conductor = (function () {
   /**
    * Gets the height of text (depends on the context's current font);
    */
-  function getTextHeight(font) {
+  function getTextHeight() {
     //Using symbols the hang and rise the most.. in English at least.
     var fontMetric = ctx.measureText("ljM^_");
     let height = fontMetric.actualBoundingBoxAscent + fontMetric.actualBoundingBoxDescent;
@@ -46,8 +46,8 @@ const conductor = (function () {
   * @returns {PolarCoordinate} r,a - the radius and azimuth (angle)
   */
   function toPolar(x, y) {
-    if (isNaN(x) || isNaN(y)){
-      throw new Error (`Cannot convert (${x},${y}) to a polar coordinate.`);
+    if (isNaN(x) || isNaN(y)) {
+      throw new Error(`Cannot convert (${x},${y}) to a polar coordinate.`);
     }
     return {
       a: Math.atan2(y, x),
@@ -65,19 +65,6 @@ const conductor = (function () {
       "x": Math.cos(polarCoordinate.a) * polarCoordinate.r,
       "y": Math.sin(polarCoordinate.a) * polarCoordinate.r
     };
-  }
-  /**
-    * Converts a polar coordinate to a cartesian coordinate after applying rotation and translation.
-    * @param {number} polar The initial polar coordinate
-    * @param {number} rotation the amount to rotate the coordinate in Radians.
-    * @param {Point} translation the {x,y} amount to translate the coorindate
-    * @returns {Point} the cartesian coordinate after transformations applied.
-    */
-  function rotateTranslateTransform(polar, rotation, translation) {
-    let rotated = { "r": polar.r, "a": polar.a + rotation };
-    let point = { "x": Math.cos(rotated.a) * rotated.r, "y": Math.sin(rotated.a) * rotated.r }
-    let translatedPoint = { "x": point.x + translation.x, "y": point.y + translation.y }
-    return translatedPoint;
   }
   /**
    * Determines if a point falls within the boundry of a rectable.
@@ -146,11 +133,9 @@ const conductor = (function () {
   }
   function drawObject_part(object, objectCenterPoint, part) {
     let partCenterPoint = {
-      "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getOrientation()) * part.offset.r * camera.zoom,
-      "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getOrientation()) * part.offset.r * camera.zoom
+      "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getDirection()) * part.offset.r * camera.zoom,
+      "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getDirection()) * part.offset.r * camera.zoom
     }
-    console.log ('part center point:');
-    console.log (partCenterPoint);
     part.sprites.forEach(sprite => {
       let firstPoint = true;
       ctx.beginPath();
@@ -162,12 +147,9 @@ const conductor = (function () {
       }
       sprite.coords.forEach(polarCoord => {
         let spritePoint = {
-          "x": partCenterPoint.x + Math.cos(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom,
-          "y": partCenterPoint.y + Math.sin(polarCoord.a + object.getOrientation()) * polarCoord.r * camera.zoom
+          "x": partCenterPoint.x + Math.cos(polarCoord.a + object.getDirection()) * polarCoord.r * camera.zoom,
+          "y": partCenterPoint.y + Math.sin(polarCoord.a + object.getDirection()) * polarCoord.r * camera.zoom
         }
-        console.log ('spritePoint:');
-        console.log (spritePoint);
-        
         if (firstPoint) {
           ctx.moveTo(spritePoint.x, spritePoint.y);
           firstPoint = false;
@@ -218,7 +200,7 @@ const conductor = (function () {
         let spritePoint = { "x": undefined, "y": undefined };
         if (!objectPosition.isFixed) {
           let rotatedScaledPolar = {
-            "a": polarCoordinate.a + object.getOrientation(),
+            "a": polarCoordinate.a + object.getDirection(),
             "r": polarCoordinate.r * camera.zoom
           };
           spritePoint = fromPolar(rotatedScaledPolar);
@@ -247,7 +229,7 @@ const conductor = (function () {
     });//next sprite..
     return spriteBounds;
   }
-  function drawObject (object, objectPosition, objectCenterPoint){
+  function drawObject(object, objectPosition, objectCenterPoint) {
     //Sprite set depends on the objects state of interaction with the mouse.
     let spriteSet = undefined;
     if (object.isToggled() || object === pressedObject) {
@@ -270,7 +252,7 @@ const conductor = (function () {
       let part = parts[partName];
       drawObject_part(object, objectCenterPoint, part);
     });
-}
+  }
   /**
    * Draws all of the game objects on the canvas which fit.  Offsets the
    * objects "Game Coordinates" {x,y} by the center of the screen, such that
@@ -289,7 +271,7 @@ const conductor = (function () {
       }
       if (isBounded(objectCenterPoint, screenBounds()) && object.getSprites().length > 0) {
         object.setOnScreen(true);
-        drawObject (object, objectPosition,objectCenterPoint);
+        drawObject(object, objectPosition, objectCenterPoint);
       }
       else {
         object.setOnScreen(false);
@@ -313,7 +295,6 @@ const conductor = (function () {
             objectInteractedWith = true; //counts because it hovering..
             if (mouse.button === false && hoveredObject !== object) {
               //a _newly_ hovered object
-
               hoveredObject = object;
               pressedObject = null;
             }
@@ -358,12 +339,39 @@ const conductor = (function () {
    * The frame rate is set when the init() function is called.
    */
   function mainLoop() {
-    delta = (time - oldTime) / 1000;
+    deltaTime = (time - oldTime) / 1000;
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     checkMouseInteractions();
     drawObjects();
+    Animate(deltaTime);
     if (running) setTimeout(mainLoop, frameRate);
+  }
+  function Animate() {
+    console.log(deltaTime);
+    Object.getOwnPropertyNames(objects).forEach(objectName => {
+      let object = objects[objectName];
+      let position = object.getPosition();
+      console.log (position);
+      let velocity = object.getVelocity();
+      console.log (velocity);
+      let spin = object.getSpin();
+      let direction = object.getDirection();
+      if (!position.isFixed) {
+        let vx = velocity.x * deltaTime;
+        let vy = velocity.y * deltaTime;
+        console.log (`vx ${vx}`);
+        console.log (`vy ${vy}`);
+        let x = position.x + velocity.x * deltaTime;
+        let y = position.y + velocity.y * deltaTime
+        console.log (`x ${vx}`);
+        console.log (`y ${vy}`);
+        
+        object.setGameCoordinates(x,y);
+        object.setDirection(direction + spin * deltaTime);
+        console.log(deltaTime);
+      }
+    });
   }
   /*
       -----------------------------PUBLIC----------------------------------------
@@ -494,15 +502,15 @@ const conductor = (function () {
      * @param  {string} partname the name of the part.
      * @param {Array.Sprite} sprites the sprites that the part draws.
      * @param {PolarCoodinate} offset the location of the part relative to the game object's center.
-     * @param {number} orientation the initial orientation of the part in radians.
+     * @param {number} direction the initial orientation of the part in radians.
      */
-    "addPartTo": function (name, partname, offset, orientation) {
-      console.log (offset);
+    "addPartTo": function (name, partname, offset, direction) {
+      console.log(offset);
       if (Object.hasOwn(objects, name)) {
         let object = objects[name];
-        
-        let polarOffset = toPolar (offset.x, offset.y);
-        object.addPart(partname, polarOffset, orientation);
+
+        let polarOffset = toPolar(offset.x, offset.y);
+        object.addPart(partname, polarOffset, direction);
       } else {
         throw new Error(`${name} does not exist.`);
       }
@@ -515,13 +523,13 @@ const conductor = (function () {
     * @param {bool} fill - true if sprite is filled, false if not.
     */
     "addSpriteToPart": function (name, partname, spritePoints, color, fill) {
-      if (Object.hasOwn(objects,name)) {
+      if (Object.hasOwn(objects, name)) {
         let object = objects[name];
         if (spritePoints.length % 2 !== 0) {
           throw new Error('sprites must be pairs of numbers {x,y}');
         }
         let polarSpritePoints = [];
-        for (let i = 0; i < spritePoints.length; i=i+2) {
+        for (let i = 0; i < spritePoints.length; i = i + 2) {
           polarSpritePoints.push(toPolar(spritePoints[i], spritePoints[i + 1]));
         }
         let polarizedSprite = {
@@ -529,7 +537,7 @@ const conductor = (function () {
           "fill": fill,
           "coords": polarSpritePoints
         }
-        
+
         object.addPartSprite(partname, polarizedSprite);
       } else {
         throw new Error(`${name} does not exist.`);
@@ -644,15 +652,31 @@ const conductor = (function () {
         }
       }
     },
-    /**
-       * Sets the orientation of a game object, in radians.
-       * @param {number} orientation the orientation/direction, in radians.
-    */
-    "setOrientationOf": function (name, orientation) {
+    "setVelocityOf": function (name, vx, vy) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`cannot set position: ${name} does not exist.`);
       } else {
-        objects[name].setOrientation(orientation);
+        objects[name].setVelocity(vx, vy);
+      }
+    },
+    "setVelocityByDirectionOf": function (name, velocity) {
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`cannot set position: ${name} does not exist.`);
+      } else {
+        let vx = Math.cos(objects[name].getDirection()) * velocity;
+        let vy = Math.sin(objects[name].getDirection()) * velocity;
+        objects[name].setVelocity(vx, vy);
+      }
+    },
+    /**
+       * Sets the direction/orientation of a game object, in radians.
+       * @param {number} direction the direction, in radians.
+    */
+    "setOrientationOf": function (name, direction) {
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`cannot set position: ${name} does not exist.`);
+      } else {
+        objects[name].setDirection(direction);
       }
     },
     /**
@@ -732,14 +756,15 @@ const conductor = (function () {
           //text, offset
           const parts = {};
           let label = null;
-          let gx = -1;
-          let gy = -1;
-          let fx = -1;
-          let fy = -1;
-          let xv = 0;
-          let yv = 0;
+          let gameX = -1;
+          let gameY = -1;
+          let fixedX = -1;
+          let fixedY = -1;
+          let velX = 0;
+          let velY = 0;
           let positionIsFixed = false;
-          let orientation = 0;
+          let spin = 0;
+          let dir = 0;
           let onScreen = false;
           let isInteractive = false;
           let isToggle = false;
@@ -759,15 +784,15 @@ const conductor = (function () {
               * @param {Polar coord} offset The position of the part relative to the center of the game object.
               * @param {number} initialOrientation (optional) The direction the part is initially facing. If omitted the
               * part will be facing "forward" (0 radians).
-            */                      
-            "addPart": function (partName, offset, initialOrientation) {
+            */
+            "addPart": function (partName, offset, initialDirection) {
               if (Object.hasOwn(parts, partName)) {
                 throw new Error(`${name} already contains part '${partName}'`);
-              }              
+              }
               let part = {
                 "name": partName,
                 "sprites": [],
-                "orientation": (initialOrientation) ? initialOrientation : 0,
+                "direction": (initialDirection) ? initialDirection : 0,
                 "offset": offset
               }
               parts[partName] = part;
@@ -791,7 +816,7 @@ const conductor = (function () {
             /**
              * Get an individual part of the object.
              * @param {string} partName the name of the part to be returned
-             * @returns the part {name, sprites, orientation, offset}
+             * @returns the part {name, sprites, direction, offset}
              */
             "getPart": function (partName) {
               if (Object.hasOwn(parts, partName)) {
@@ -867,15 +892,22 @@ const conductor = (function () {
               return pressedSprites;
             },
             /**
-              * Adds a text label to  be drawn with the sprite.
-              * @param {string} text the label to attach to the sprite.
-              * @param {Point} offset the position (from the center of the sprite) to place the label.
-              * @param {string} color the "#RGB" color to draw the label.
-              * @param {string} hoveredColor the "#RGB" color to draw the label if the mouse is hovering over it (if its
-              * interactive).
-              * @param {string} pressedColor the "RGB" color to draw the label if the mouse is pressing on it (if its
-              * interactive).
+            * Gets the label to be drawn with the sprite.
+            * @return the label {text, offset, color}
             */
+            "getLabel": function () {
+              return label;
+            },
+            /**
+             * Adds a text label to  be drawn with the sprite.
+             * @param {string} text the label to attach to the sprite.
+             * @param {Point} offset the position (from the center of the sprite) to place the label.
+             * @param {string} color the "#RGB" color to draw the label.
+             * @param {string} hoveredColor the "#RGB" color to draw the label if the mouse is hovering over it (if its
+             * interactive).
+             * @param {string} pressedColor the "RGB" color to draw the label if the mouse is pressing on it (if its
+             * interactive).
+           */
             "setLabel": function (text, offset, color, hoveredColor, pressedColor) {
               if (!text || !offset || !color) {
                 throw new Error(`cannot set label for ${name} missing parameter.`);
@@ -888,30 +920,32 @@ const conductor = (function () {
                 "pressedColor": pressedColor
               };
             },
-            /**
-             * Gets the label to be drawn with the sprite.
-             * @return the label {text, offset, color}
-             */
-            "getLabel": function () {
-              return label;
-            },
-            /**
-             * Gets the objects position in Game Coordinates
-             * @returns {Point} Game coordinates.
-             */
-            "getPosition": function () {
-              if (positionIsFixed) {
-                return { "x": fx, "y": fy, "isFixed": true };
-              } else {
-                return { "x": gx, "y": gy, "isFixed": false };
-              }
-            },
+
             /**
              * Gets the orientation/direction the object is facing- In Radians.
-             * @returns the orientation in radians.
+             * @returns the direction in radians.
              */
-            "getOrientation": function () {
-              return orientation;
+            "getDirection": function () {
+              return dir;
+            },
+            /**
+            * Sets the direction/orientation of the object in Game Cooridnates.
+            * @param {number} angle the direction in radians.             
+            */
+            "setDirection": function (angle) {
+              dir = angle;
+            },
+
+            /**
+            * Gets the objects position in Game Coordinates
+            * @returns {Point} Game coordinates.
+            */
+            "getPosition": function () {
+              if (positionIsFixed) {
+                return { "x": fixedX, "y": fixedY, "isFixed": true };
+              } else {
+                return { "x": gameX, "y": gameY, "isFixed": false };
+              }
             },
             /**
              * Sets the position of the object in Game Coordinates 
@@ -919,8 +953,8 @@ const conductor = (function () {
              * @param {number} y  the y coordinate where the object is in the game world.
              */
             "setGameCoordinates": function (x, y) {
-              gx = x;
-              gy = y;
+              gameX = x;
+              gameY = y;
               positionIsFixed = false;
             },
             /**
@@ -929,17 +963,22 @@ const conductor = (function () {
              * @param {number} the y coordinate of the object on the screen.
              */
             "setFixedCoordinates": function (x, y) {
-              fx = x;
-              fy = y;
+              fixedX = x;
+              fixedY = y;
               positionIsFixed = true;
             },
-            /**
-             * Sets the orientation of the object in Game Cooridnates.
-             * @param {number} x the x coordinate.
-             * @param {number} y  the y coordinate.
-             */
-            "setOrientation": function (angle) {
-              orientation = angle;
+            "getVelocity": function () {
+              return { "x": velX, "y": velY }
+            },
+            "setVelocity": function (vx, vy) {
+              velX = vx;
+              velY = vy;
+            },
+            "setSpin": function (radiansPerSecond) {
+              spin = radiansPerSecond;
+            },
+            "getSpin": function () {
+              return spin;
             },
             /**
              * Let's you know if the object is on screen, and should checked for mouse events.
@@ -955,7 +994,6 @@ const conductor = (function () {
              * considered for mouse interaction if it isn't on the screen.
              * @param {bool} visible true or false.
              */
-
             "setOnScreen": function (visible) {
               onScreen = visible;
             },
@@ -963,7 +1001,6 @@ const conductor = (function () {
              * @returns true if this can interact with the mouse, false otherwise.
              */
             "isInteractive": function () {
-
               return isInteractive;
             },
             /**

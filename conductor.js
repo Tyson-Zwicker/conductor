@@ -9,6 +9,7 @@ const conductor = (function () {
   var time = new Date();
   var zoomOnWheel = false;
   var deltaTime = 0;
+  var frameNumber = 0;
   /**
    * The camera view the Game World, its coordinates reflect the Game Coordinate that will be at the center
    * of the screen. It also handles zooming.  A zoom value of 1 is "normal" zoom.  Higher values
@@ -339,37 +340,37 @@ const conductor = (function () {
    * The frame rate is set when the init() function is called.
    */
   function mainLoop() {
+    oldTime = time;
+    time = new Date();
     deltaTime = (time - oldTime) / 1000;
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     checkMouseInteractions();
     drawObjects();
     Animate(deltaTime);
+    frameNumber++
     if (running) setTimeout(mainLoop, frameRate);
   }
   function Animate() {
-    console.log(deltaTime);
     Object.getOwnPropertyNames(objects).forEach(objectName => {
       let object = objects[objectName];
       let position = object.getPosition();
-      console.log (position);
-      let velocity = object.getVelocity();
-      console.log (velocity);
+      let velocity = object.getVelocity(); //<-{x,y} is no steering, velocity is a number if steering is used..
       let spin = object.getSpin();
       let direction = object.getDirection();
       if (!position.isFixed) {
-        let vx = velocity.x * deltaTime;
-        let vy = velocity.y * deltaTime;
-        console.log (`vx ${vx}`);
-        console.log (`vy ${vy}`);
-        let x = position.x + velocity.x * deltaTime;
-        let y = position.y + velocity.y * deltaTime
-        console.log (`x ${vx}`);
-        console.log (`y ${vy}`);
-        
-        object.setGameCoordinates(x,y);
+        let x, y;
+        if (object.getUsesSteering()) {
+          x = position.x + Math.cos(direction) * velocity * deltaTime;
+          y = position.y + Math.sin(direction) * velocity * deltaTime;
+        } else {
+          x = position.x + velocity.x * deltaTime;
+          y = position.y + velocity.y * deltaTime
+        }
+        object.setGameCoordinates(x, y);
+
+
         object.setDirection(direction + spin * deltaTime);
-        console.log(deltaTime);
       }
     });
   }
@@ -672,11 +673,25 @@ const conductor = (function () {
        * Sets the direction/orientation of a game object, in radians.
        * @param {number} direction the direction, in radians.
     */
-    "setOrientationOf": function (name, direction) {
+    "setDirectionOf": function (name, direction) {
       if (!Object.hasOwn(objects, name)) {
         throw new Error(`cannot set position: ${name} does not exist.`);
       } else {
         objects[name].setDirection(direction);
+      }
+    },
+    "setSpinOf": function (name, spin) {
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`cannot set position: ${name} does not exist.`);
+      } else {
+        objects[name].setSpin(spin);
+      }
+    },
+    "setUsesSteering": function (name, usesSteering) {
+      if (!Object.hasOwn(objects, name)) {
+        throw new Error(`cannot set position: ${name} does not exist.`);
+      } else {
+        objects[name].usesSteering(usesSteering);
       }
     },
     /**
@@ -760,11 +775,13 @@ const conductor = (function () {
           let gameY = -1;
           let fixedX = -1;
           let fixedY = -1;
-          let velX = 0;
-          let velY = 0;
+          let velX = 0;//<-- if steering is not used.
+          let velY = 0;//<-- if steering is not used.
+          let vel = 0; //<--if steering is used.
           let positionIsFixed = false;
           let spin = 0;
           let dir = 0;
+          let usesSteering = true;
           let onScreen = false;
           let isInteractive = false;
           let isToggle = false;
@@ -968,9 +985,16 @@ const conductor = (function () {
               positionIsFixed = true;
             },
             "getVelocity": function () {
-              return { "x": velX, "y": velY }
+              if (usesSteering) {
+                return vel;
+              } else {
+                return { "x": velX, "y": velY }
+              }
             },
-            "setVelocity": function (vx, vy) {
+            "setVelocity": function (velocity) {
+              vel = velocity;
+            },
+            "setComponentVelocity": function (vx, vy) {
               velX = vx;
               velY = vy;
             },
@@ -979,6 +1003,12 @@ const conductor = (function () {
             },
             "getSpin": function () {
               return spin;
+            },
+            "usesSteering": function (steer) {
+              usesSteering = (steer) ? steer : true;
+            },
+            "getUsesSteering": function () {
+              return usesSteering;
             },
             /**
              * Let's you know if the object is on screen, and should checked for mouse events.

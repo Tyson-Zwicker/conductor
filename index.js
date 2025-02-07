@@ -1,19 +1,19 @@
 const setup = function () {
   conductor.init('#012', true);
   conductor.setFont(14, true);
-  conductor.setCamera(100, 100, .5);
-
-  conductor.create('test');
-  conductor.addSpriteTo('test', [0, -50, 30, 30, -30, 30], '#0f0');
-  conductor.setPositionOf('test', -100, 0);
-  conductor.setLabelOf('test', 'Triangle', { "x": 0, "y": 0 }, '#fff');
-
-  conductor.create('test2');
-  conductor.addSpriteTo('test2', [-20, -20, 20, -20, 20, 20, -20, 20], '#f00');
-  conductor.setPositionOf('test2', 300, 200);
-  conductor.setOrientationOf('test2', Math.PI / 6);
-  conductor.setLabelOf('test2', 'Square', { "x": 0, "y": 30 }, '#ff0');
-
+  conductor.setCamera(200, 200, .5);
+  /*
+    conductor.create('test');
+    conductor.addSpriteTo('test', [0, -50, 30, 30, -30, 30], '#0f0');
+    conductor.setPositionOf('test', -100, 0);
+    conductor.setLabelOf('test', 'Triangle', { "x": 0, "y": 0 }, '#fff');
+  
+    conductor.create('test2');
+    conductor.addSpriteTo('test2', [-20, -20, 20, -20, 20, 20, -20, 20], '#f00');
+    conductor.setPositionOf('test2', 300, 200);
+    conductor.setOrientationOf('test2', Math.PI / 6);
+    conductor.setLabelOf('test2', 'Square', { "x": 0, "y": 30 }, '#ff0');
+  */
   let ntext = '#fff';
   let nback = '#08f';
   let htext = '#ff0';
@@ -48,43 +48,48 @@ const setup = function () {
   conductor.registerWithRadioGroup('button4', 'myradio');
   conductor.registerWithRadioGroup('button5', 'myradio');
 
-  
+
+  //Remember 0 radians points to the right.  The front of your thing is x+
+
   let shipSpriteCoords = [
-    0, -100,
-    15, -90,
-    30, -70,
-    35, -50,
-    35, 80,
-    25, 90,
-    10, 100,
-    -10, 100,
-    -25, 90,
-    -35, 80,
-    -35, -50,
-    -30, -70,
-    -15, -90];
+    100, 0,
+    90, 15,
+    80, 25,
+    70, 30,
+    -80,30,
+    -90,10,
+    -95,5,
+    -95,-5,
+    -90,-10,
+    -80,-30,
+    70,-30,
+    80,-25,
+    90,-15
+  ];
   conductor.create('ship');
   conductor.addSpriteTo('ship', shipSpriteCoords, '#556', true);
   conductor.addSpriteTo('ship', shipSpriteCoords, '#aaa', false);
-  conductor.setPositionOf('ship', 500, 500, false);
+  conductor.setPositionOf('ship', 100, 100, false);
   conductor.setLabelOf('ship', 'X-1', { "x": 0, "y": 0 }, '#fff');
 
-  //TODO: Make this a part of 'ship'.. for now just making sure it looks "turret-y".
   conductor.create('turret');
-  let turretSpritePoints = [
-    -7, -10,
-    -1, -10,
-    -1, -20,
-    1, -20,
-    1, -10,
-    7, -10,
-    10, 10,
-    -10, 10
-  ];
-  //function (name, partname, offset, orientation)
-  conductor.addPartTo('ship','turret', {"x":0,"y":-30},0);
-  //addSpriteToPart(name, partname, points, color, fill)
-  conductor.addSpriteToPart ('ship','turret',turretSpritePoints,'#ff0', true);
-  conductor.setVelocityByDirectionOf ('ship',5);//5 pixels per second hopefully...
+   let turretSpritePoints = [
+     -10, -7,
+     -10, -1,
+     -20, -1,
+     -20, 1,
+     -10, 1,
+     -10, 7,
+     10, 10,
+     10, -10
+   ];
+  conductor.addPartTo('ship', 'turretA', { "x": 40, "y": 0 }, Math.PI/2);
+  conductor.addSpriteToPart('ship', 'turretA', turretSpritePoints, '#ff0', true);
+  conductor.addPartTo('ship', 'turretB', { "x": -40, "y": 0 }, 0);
+  conductor.addSpriteToPart('ship', 'turretB', turretSpritePoints, '#ff0', true);
+  conductor.setDirectionOf('ship', 0);
+  conductor.setSpinOf ('ship',Math.PI/30);
+  conductor.setVelocityByDirectionOf('ship', 20);//5 pixels per second hopefully...
+  conductor.setUsesSteering ('ship',true);
   conductor.startLoop(33);
 }

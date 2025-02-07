@@ -10,7 +10,8 @@ const conductor = (function () {
   var zoomOnWheel = false;
   var deltaTime = 0;
   var frameNumber = 0;
-  var ZOOM_FACTOR = 10;
+  const ZOOM_FACTOR = 10;
+  const DEFAULT_LINE_WIDTH = 1;
   /**
    * The camera view the Game World, its coordinates reflect the Game Coordinate that will be at the center
    * of the screen. It also handles zooming.  A zoom value of 1 is "normal" zoom.  Higher values
@@ -22,7 +23,15 @@ const conductor = (function () {
   var pressedObject = null;
   var radioGroups = {};
   var initialized = false;
-  /**
+  //TODO: USE FOR CONSITANCY..
+  function makeSprite (coords, color, fill, convert) {
+    return {
+      "color": color,
+      "fill": fill,
+      // TODO :coords..depending on conversion.
+    }
+  }
+   /**
    * Gets the width of text (depends on context's current font) and the text..
    * @param {string} text the text to be measured
    * @returns the width of the text, in pixels.
@@ -118,6 +127,7 @@ const conductor = (function () {
     return adjustedSpriteBounds;
   }
   function drawObject_part(object, objectCenterPoint, part) {
+    //TODO: THIS IS THE TYPE OF SHIT THAT MAKES THE "ROTATEPOINT", "ADDPOINT" and "SCALE" functions a good idea..
     let partCenterPoint = {
       "x": objectCenterPoint.x + Math.cos(part.offset.a + object.getDirection()) * part.offset.r * camera.zoom,
       "y": objectCenterPoint.y + Math.sin(part.offset.a + object.getDirection()) * part.offset.r * camera.zoom
@@ -129,15 +139,13 @@ const conductor = (function () {
         ctx.fillStyle = sprite.color;
       } else {
         ctx.strokeStyle = sprite.color;
-        ctx.lineWidth = 1;//TODO: Either let the user set this, or make this 1 always by adding  it to one in init...
+        ctx.lineWidth = DEFAULT_LINE_WIDTH;
       }
-      sprite.coords.forEach(polarCoord => {
-        //TODO:  Here is where you need to add the part's direction to the object's direction to account for
-        //its own rotation!
+      sprite.coords.forEach(polarCoord => {        
         //TODO: THIS IS THE TYPE OF SHIT THAT MAKES THE "ROTATEPOINT", "ADDPOINT" and "SCALE" functions a good idea..
         let spritePoint = {
-          "x": partCenterPoint.x + Math.cos(polarCoord.a + object.getDirection()) * polarCoord.r * camera.zoom,
-          "y": partCenterPoint.y + Math.sin(polarCoord.a + object.getDirection()) * polarCoord.r * camera.zoom
+          "x": partCenterPoint.x + Math.cos(polarCoord.a + object.getDirection()+part.direction) * polarCoord.r * camera.zoom,
+          "y": partCenterPoint.y + Math.sin(polarCoord.a + object.getDirection()+part.direction) * polarCoord.r * camera.zoom
         }
         if (firstPoint) {
           ctx.moveTo(spritePoint.x, spritePoint.y);

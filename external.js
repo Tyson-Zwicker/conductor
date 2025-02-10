@@ -1,24 +1,15 @@
 const Sprite = function (points, color, filled, lineWidth) {
-  if (points.length%2!==0) throw new Error ('Sprite.constructor -> points must be numbers pairs: (x,y,..)');
+  if (points.length % 2 !== 0) throw new Error('Sprite.constructor -> points must be numbers pairs: (x,y,..)');
   _points = points;
   _color = color;
   _filled = filled;
   _lineWidth = lineWidth;
+  _path = undefined;
   return {
-    "getScreenBounds": function (){
-      if (!_currentBounds) throw Error ('You have to draw the sprite at least once to know this.');
-      return _currentBounds();
-    },
-    "draw": function (context, centerPoint, rotation, scale) {
-      
+    //Do this before you try to draw the sprite, or check for mouse interaction..
+    "setPath": function (centerPoint, rotation, scale) {
+      _path = new Path2D();
       let firstPoint = true;
-      if (_filled) {
-        context.fillStyle = sprite.color;
-      } else {
-        context.strokeStyle = sprite.color;
-        context.lineWidth = _lineWidth;
-      }
-      context.beginPath();
       _points.forEach(point => {
         let p = point;
         if (scale) p = p.scale(scale);
@@ -26,27 +17,44 @@ const Sprite = function (points, color, filled, lineWidth) {
         p = p.add(centerPoint);
         if (firstPoint) {
           firstPoint = false;
-          context.moveTo(p.getX(), p.getY());
+          _path.moveTo(p.getX(), p.getY());
         } else {
-          context.lineTo(p.getX(), p.getY());
+          _path.lineTo(p.getX(), p.getY());
         }
+        _path.closePath();
       });
-      context.closePath();
-      console.log (context);
+    },
+    
+    "getPath": function () {
+      return _path
+    },
+    "isMouseTouching": function (context, mouseX, mouseY){
+      return context.isPointIn (mouseX, mouseY);
+    },
+    "draw": function (context) {
+      if (!_path) throw Error('no path defined for sprite.');
       if (_filled) {
-        context.stroke();
+        context.fillStyle = sprite.color;
+        context.fill(path);
       } else {
-        context.fill();
+        context.strokeStyle = sprite.color;
+        context.lineWidth = _lineWidth;
+        context.stroke(_path);
       }
+    },
+
+    "toString": function(){
+      return `color ${_color}, filled ${_filled}, points ${_points} path:${_path}`;
     }
   }
-};
+}
 const Point = function (x, y) {
   if (isNaN(x)) throw Error(`Point.constructor: ${x} is not a number.`);
   if (isNaN(y)) throw Error(`Point.constructor: ${y} is not a number.`);
   const _x = x;
   const _y = y;
   return {
+    "P": function () { return priv(); },
     "X": function () {
       return _x;
     },
@@ -61,10 +69,10 @@ const Point = function (x, y) {
       return new Point(_x + point.X(), _y + point.Y());
     },
     "sub": function (point) {
-      return new Point ( _x - point.X(),_y - point.Y());
+      return new Point(_x - point.X(), _y - point.Y());
     },
     "rotate": function (radians) {
-      return new Point (
+      return new Point(
         _x * Math.cos(radians) - _y * Math.sin(radians),
         _y * Math.sin(radians) + _y * Math.cos(radians)
       );
